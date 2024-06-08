@@ -23,6 +23,19 @@
 
 export apriori
 
+struct Arule
+    lhs::Vector{String} # Vector containing the string name(s) of the left-hand side of the rule
+    rhs::String # String name of the right-hand side of the rule
+    supp::Float64 # Support value
+    conf::Float64 # Confidence Value
+    cov::Float64 # Coverage Value
+    lift::Float64 # Lift Value
+    n::Int # Count (n) value
+    len::Int # Length of the rule
+    lin::Vector{Int} # Lineage of the rule (LHS union RHS)
+    cand::Vector{Int} # Candidate children rules
+end
+
 """
     apriori(txns::Transactions, minsup::Real, maxlen::Int; minconf::Union{Real,Nothing}=nothing)
 
@@ -30,15 +43,10 @@ export apriori
 Identify association rules in a transactional dataset `txns`, with minimum support, `minsup`, 
 and maximum rule length, `maxlen`.
 
-Optionally, pass a minimum confidence level with the `minconf` kwarg
 """
-function apriori(txns::Transactions, minsup::Real, maxlen::Int; minconf::Union{Real,Nothing}=nothing)
+function apriori(txns::Transactions, minsup::Real, maxlen::Int)::DataFrame
     
-    Overall_Length = size(txns.matrix)[1]
-    Overall_Number = vec(sum(txns.matrix, dims=1))
-    Overall_Support = Overall_Number / Overall_Length
-
-    function Siblings(items::Vector{Int},value::Int)
+    function siblings(items::Vector{Int},value::Int)
         return filter(x -> x != value, items)
     end
 
@@ -46,63 +54,72 @@ function apriori(txns::Transactions, minsup::Real, maxlen::Int; minconf::Union{R
         return getindex.(Ref(txns.colkeys), indexes)
     end
 
-    items = findall(x -> x > minsup, Overall_Support)
+    baselen = size(txns.matrix)[1]
+    basenum = vec(sum(txns.matrix, dims=1))
+    basesupport = basenum / baselen
 
-    rules = DataFrame(
-        LHS = [missing for item in items],
-        RHS = GetNames(items),
-        Support = Overall_Support[items],
-        Coverage = [1.0 for i in items],
-        Cov_y = [1.0 for i in items],
-        N = [Overall_Number[item] for item in items],
-        Length = [1 for i in items],
-        Filters = [[i] for i in items],
-        PotentialRHS = map(x -> Siblings(items,x),items),
-    )
+    items = findall(x -> x > minsup, basesupport)
+    
+    rules = Vector{Arule}()
+
+    for item in items
+        rule = Arule(
+                Vector(String[]), # LHS
+                txns.colkeys[item], # RHS
+                basesupport[item], # Support
+                basesupport[item], # Confidence (same as support on base nodes)
+                1.0, # Coverage (1 on base nodes)
+                1.0, # Lift (1 on base nodes)
+                basenum[item], # N
+                1, # Length
+                Vector([item]), # Lineage
+                siblings(items,item) # Potential Next Nodes
+            )
+        push!(rules,rule)
+    end
     if maxlen > 1
-        for CurrentLength in range(1,maxlen-1)
-            
-            CurrentLevel = filter(:Length => x -> (x == CurrentLength), rules)
-            CurrentLevel = filter(:PotentialRHS => x -> length(x) > 0, rules)
-            if nrow(CurrentLevel) == 0
-                continue
-            end
-            
-            for i in range(1,nrow(CurrentLevel))
-                Spec = CurrentLevel[i,:]
+        parents = rules
+        for level in range(2,maxlen)
+            levelrules = Vector{Arule}()
+            for parent in parents
                 
-                subtrans = txns.matrix[vec(any(txns.matrix[:, Spec[:Filters]] .!= 0, dims=2)), :]
+                mask = vec(all(txns.matrix[:, parent.lin] .!= 0, dims=2))
+                subtrans = txns.matrix[mask, :]
 
-                Num_X_Y = vec(sum(subtrans, dims=1))
-                Support_X_Y = Num_X_Y / Overall_Length
-                
-                items = findall(x -> x > minsup, Support_X_Y)
-                items = filter(x -> (x in Spec[:PotentialRHS]), items)
+                subnum = vec(sum(subtrans, dims=1))
+                subsupport = subnum / baselen
 
-                NewRules = DataFrame(
-                    LHS = [GetNames(Spec[:Filters]) for i in items],
-                    RHS = GetNames(items),
-                    Support = Supports = Support_X_Y[items],
-                    Coverage = [Spec[:Support] for item in items],
-                    Cov_y = [Overall_Support[item] for item in items],
-                    N = [Num_X_Y[item] for item in items],
-                    Length = CurrentLength+1,
-                    Filters = [vcat(Spec[:Filters],Vector([item])) for item in items],
-                    PotentialRHS = map(x -> Siblings(items,x),items)
-                )
-
-                append!(rules,NewRules,promote=true)
+                items = findall(x -> x > minsup, subsupport)
+                items = filter(x -> (x in parent.cand), items)
+                for item in items
+                    rule = Arule(
+                        GetNames(parent.lin), # LHS
+                        txns.colkeys[item], # RHS
+                        subsupport[item], # Support
+                        subsupport[item]/parent.supp, # Confidence
+                        parent.supp, # Coverage
+                        (subsupport[item]/parent.supp)/basesupport[item], # Lift
+                        subnum[item], # N
+                        level, # length
+                        sort(vcat(parent.lin,item)), # lineage
+                        siblings(items,item) # Potential Next Nodes
+                    )
+                    push!(levelrules,rule)
+                end
             end
+            append!(rules,levelrules)
+            parents = levelrules
         end
     end
-
-    transform!(rules,[:Support,:Coverage] => ((x,y) -> x./y) => :Confidence)
-    transform!(rules,[:Confidence,:Cov_y] => ((x,y) -> x./y) => :Lift)
-    select!(rules,[:LHS,:RHS,:Support,:Confidence,:Coverage,:Lift,:N])
-    
-    if !isnothing(minconf)
-        filter!(:Confidence => (x -> x > minconf), rules)
-    end
-
-    return rules
+    rules = DataFrame(
+            LHS = [rule.lhs for rule in rules],
+            RHS = [rule.rhs for rule in rules],
+            Support = [rule.supp for rule in rules],
+            Confidence = [rule.conf for rule in rules],
+            Coverage = [rule.cov for rule in rules],
+            Lift = [rule.lift for rule in rules],
+            N = [rule.n for rule in rules],
+            Length = [rule.len for rule in rules]
+        )
+    return unique(rules)
 end
