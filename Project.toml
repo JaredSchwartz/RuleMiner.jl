@@ -1,0 +1,18 @@
+name = "RuleMiner"
+uuid = "26420b10-3f9f-4b54-bd85-e6b3d5a44d3c"
+authors = ["Jared Schwartz"]
+version = "0.0.1-DEV"
+
+[deps]
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+LuxurySparse = "d05aeea4-b7d4-55ac-b691-9e7fabb07ba2"
+StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
+
+[compat]
+julia = "1.6.7"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
