@@ -50,13 +50,13 @@ function apriori(txns::Transactions, minsup::Real, maxlen::Int)::DataFrame
         return filter(x -> x != value, items)
     end
 
-    function GetNames(indexes)
+    function GetNames(indexes::Vector{Int})
         return getindex.(Ref(txns.colkeys), indexes)
     end
 
     baselen = size(txns.matrix)[1]
     basenum = vec(sum(txns.matrix, dims=1))
-    basesupport = basenum / baselen
+    basesupport = basenum ./ baselen
 
     items = findall(x -> x > minsup, basesupport)
     
@@ -79,7 +79,7 @@ function apriori(txns::Transactions, minsup::Real, maxlen::Int)::DataFrame
     end
     if maxlen > 1
         parents = rules
-        for level in range(2, maxlen; step=1)
+        for level in 2:maxlen
             levelrules = Vector{Arule}()
             @threads for parent in parents
                 
@@ -87,7 +87,7 @@ function apriori(txns::Transactions, minsup::Real, maxlen::Int)::DataFrame
                 subtrans = txns.matrix[mask, :]
 
                 subnum = vec(sum(subtrans, dims=1))
-                subsupport = subnum / baselen
+                subsupport = subnum ./ baselen
 
                 items = findall(x -> x > minsup, subsupport)
                 items = filter(x -> (x in parent.cand), items)
@@ -96,13 +96,13 @@ function apriori(txns::Transactions, minsup::Real, maxlen::Int)::DataFrame
                         GetNames(parent.lin), # LHS
                         txns.colkeys[item], # RHS
                         subsupport[item], # Support
-                        subsupport[item]/parent.supp, # Confidence
+                        subsupport[item] / parent.supp, # Confidence
                         parent.supp, # Coverage
-                        (subsupport[item]/parent.supp)/basesupport[item], # Lift
+                        (subsupport[item] / parent.supp) / basesupport[item], # Lift
                         subnum[item], # N
                         level, # length
-                        sort(vcat(parent.lin,item)), # lineage
-                        siblings(items,item) # Potential Next Nodes
+                        sort(vcat(parent.lin, item)), # lineage
+                        siblings(items, item) # Potential Next Nodes
                     )
                     push!(levelrules,rule)
                 end

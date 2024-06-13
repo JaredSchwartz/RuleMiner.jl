@@ -26,7 +26,7 @@ module RuleMiner
 using DataFrames, LuxurySparse, StatsBase, Base.Threads
 
 struct Transactions
-    matrix::SparseMatrixCSC # Sparse matrix showing the locations of the items (columns) in the transactions(rows)
+    matrix::SparseMatrixCSC{Bool,Int64} # Sparse matrix showing the locations of the items (columns) in the transactions(rows)
     colkeys::Dict{Int,String} # Dictionary mapping column indexes to their original values in the source
     linekeys::Dict{Int,String} # Dictionary mapping line indexes to their original values in the source (or generated index #)
 end
