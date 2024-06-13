@@ -79,7 +79,7 @@ function apriori(txns::Transactions, minsup::Real, maxlen::Int)::DataFrame
     end
     if maxlen > 1
         parents = rules
-        for level in range(2,maxlen)
+        for level in range(2, maxlen; step=1)
             levelrules = Vector{Arule}()
             for parent in parents
                 
