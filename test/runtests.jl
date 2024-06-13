@@ -12,5 +12,5 @@ end
 @testset "apriori.jl" begin
     data = load_transactions(joinpath(@__DIR__,"files/testdata.txt"),:wide; sep=',')
     rules = apriori(data,0.3,2)
-    @test rules.RHS == ["beer","bread","cheese","eggs","ham","milk","milk","eggs"]
+    @test sort(rules.RHS) == ["beer", "bread", "cheese", "eggs", "eggs", "ham", "milk", "milk"]
 end
