@@ -9,6 +9,9 @@ LuxurySparse = "d05aeea4-b7d4-55ac-b691-9e7fabb07ba2"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 
 [compat]
+DataFrames = "1"
+StatsBase = "0.34"
+LuxurySparse = "0.7"
 julia = "1.6.7"
 
 [extras]
