@@ -5,8 +5,8 @@ using Test
     data = load_transactions(joinpath(@__DIR__,"files/testdata.txt"),:wide; sep=',')
     @test size(data.matrix) == (9,16)
     @test sum(data2.matrix) == 36
-    @test data2.colkeys[10] == "hamburger"
-    @test data2.linekeys[7] == "7"
+    @test data.colkeys[10] == "hamburger"
+    @test data.linekeys[7] == "7"
 end
 
 @testset "apriori.jl" begin
