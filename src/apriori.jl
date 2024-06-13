@@ -81,7 +81,7 @@ function apriori(txns::Transactions, minsup::Real, maxlen::Int)::DataFrame
         parents = rules
         for level in range(2, maxlen; step=1)
             levelrules = Vector{Arule}()
-            for parent in parents
+            @threads for parent in parents
                 
                 mask = vec(all(txns.matrix[:, parent.lin] .!= 0, dims=2))
                 subtrans = txns.matrix[mask, :]

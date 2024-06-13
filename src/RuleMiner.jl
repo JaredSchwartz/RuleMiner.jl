@@ -23,7 +23,7 @@
 
 module RuleMiner
 
-using DataFrames, LuxurySparse, StatsBase 
+using DataFrames, LuxurySparse, StatsBase, Base.Threads
 
 struct Transactions
     matrix::SparseMatrixCSC # Sparse matrix showing the locations of the items (columns) in the transactions(rows)
