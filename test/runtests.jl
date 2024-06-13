@@ -4,7 +4,7 @@ using Test
 @testset "loader.jl" begin
     data = load_transactions(joinpath(@__DIR__,"files/testdata.txt"),:wide; sep=',')
     @test size(data.matrix) == (9,16)
-    @test sum(data2.matrix) == 36
+    @test sum(data.matrix) == 36
     @test data.colkeys[10] == "hamburger"
     @test data.linekeys[7] == "7"
 end
