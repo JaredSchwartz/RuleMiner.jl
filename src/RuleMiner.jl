@@ -31,6 +31,12 @@ struct Transactions
     linekeys::Dict{Int,String} # Dictionary mapping line indexes to their original values in the source (or generated index #)
 end
 
-include("apriori.jl")
+# Helper function to take indexes and return their column names
+function getnames(indexes::Vector{Int},txns::Transactions)
+    return getindex.(Ref(txns.colkeys), indexes)
+end
+
 include("loader.jl")
+include("apriori.jl")
+include("eclat.jl")
 end

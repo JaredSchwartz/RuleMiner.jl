@@ -37,28 +37,24 @@ struct Arule
 end
 
 """
-    apriori(txns::Transactions, minsup::Real, maxlen::Int; minconf::Union{Real,Nothing}=nothing)
+    apriori(txns::Transactions, min_support::Real, max_length::Int; minconf::Union{Real,Nothing}=nothing)
 
 
-Identify association rules in a transactional dataset `txns`, with minimum support, `minsup`, 
-and maximum rule length, `maxlen`.
+Identify association rules in a transactional dataset `txns`, with minimum support, `min_support`, 
+and maximum rule length, `max_length`.
 
 """
-function apriori(txns::Transactions, minsup::Real, maxlen::Int)::DataFrame
+function apriori(txns::Transactions, min_support::Real, max_length::Int)::DataFrame
     
     function siblings(items::Vector{Int},value::Int)
         return filter(x -> x != value, items)
-    end
-
-    function GetNames(indexes::Vector{Int})
-        return getindex.(Ref(txns.colkeys), indexes)
     end
 
     baselen = size(txns.matrix)[1]
     basenum = vec(sum(txns.matrix, dims=1))
     basesupport = basenum ./ baselen
 
-    items = findall(x -> x > minsup, basesupport)
+    items = findall(x -> x > min_support, basesupport)
     
     rules = Vector{Arule}()
 
@@ -77,9 +73,9 @@ function apriori(txns::Transactions, minsup::Real, maxlen::Int)::DataFrame
             )
         push!(rules,rule)
     end
-    if maxlen > 1
+    if max_length > 1
         parents = rules
-        for level in 2:maxlen
+        for level in 2:max_length
             levelrules = Vector{Arule}()
             @threads for parent in parents
                 
@@ -89,11 +85,11 @@ function apriori(txns::Transactions, minsup::Real, maxlen::Int)::DataFrame
                 subnum = vec(sum(subtrans, dims=1))
                 subsupport = subnum ./ baselen
 
-                items = findall(x -> x > minsup, subsupport)
+                items = findall(x -> x > min_support, subsupport)
                 items = filter(x -> (x in parent.cand), items)
                 for item in items
                     rule = Arule(
-                        GetNames(parent.lin), # LHS
+                        getnames(parent.lin,txns), # LHS
                         txns.colkeys[item], # RHS
                         subsupport[item], # Support
                         subsupport[item] / parent.supp, # Confidence
