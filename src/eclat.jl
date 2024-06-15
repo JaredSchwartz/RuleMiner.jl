@@ -44,7 +44,7 @@ function eclat(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
     
     # Handle min_support as a float value
     if min_support isa Float64
-        min_support = trunc(Int, min_support * n_transactions)
+        min_support = ceil(Int, min_support * n_transactions)
     end
 
     # Calculate initial supports and sort the columns
