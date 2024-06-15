@@ -46,8 +46,8 @@ and maximum rule length, `max_length`.
 """
 function apriori(txns::Transactions, min_support::Real, max_length::Int)::DataFrame
     
-    function siblings(items::Vector{Int},value::Int)
-        return filter(x -> x != value, items)
+    function siblings(items::Vector{Int},value::Int,lineage::Vector{Int})
+        return setdiff(items, vcat(lineage,value))
     end
 
     baselen = size(txns.matrix)[1]
@@ -69,14 +69,20 @@ function apriori(txns::Transactions, min_support::Real, max_length::Int)::DataFr
                 basenum[item], # N
                 1, # Length
                 Vector([item]), # Lineage
-                siblings(items,item) # Potential Next Nodes
+                siblings(items,item,Vector{Int}()) # Potential Next Nodes
             )
         push!(rules,rule)
     end
     if max_length > 1
         parents = rules
         for level in 2:max_length
-            levelrules = Vector{Arule}()
+
+            # Create output array to prevent thread race conditions
+            levelrules = Vector{Vector{Arule}}()
+            for i in 1:Threads.nthreads()
+                push!(levelrules,Arule[])
+            end
+            
             @threads for parent in parents
                 
                 mask = vec(all(txns.matrix[:, parent.lin] .!= 0, dims=2))
@@ -85,26 +91,26 @@ function apriori(txns::Transactions, min_support::Real, max_length::Int)::DataFr
                 subnum = vec(sum(subtrans, dims=1))
                 subsupport = subnum ./ baselen
 
-                items = findall(x -> x > min_support, subsupport)
-                items = filter(x -> (x in parent.cand), items)
-                for item in items
-                    rule = Arule(
+                subitems = findall(x -> x > min_support, subsupport)
+                subitems = filter(x -> (x in parent.cand), subitems)
+                for i in subitems
+                    subrule = Arule(
                         getnames(parent.lin,txns), # LHS
-                        txns.colkeys[item], # RHS
-                        subsupport[item], # Support
-                        subsupport[item] / parent.supp, # Confidence
+                        txns.colkeys[i], # RHS
+                        subsupport[i], # Support
+                        subsupport[i] / parent.supp, # Confidence
                         parent.supp, # Coverage
-                        (subsupport[item] / parent.supp) / basesupport[item], # Lift
-                        subnum[item], # N
+                        (subsupport[i] / parent.supp) / basesupport[i], # Lift
+                        subnum[i], # N
                         level, # length
-                        sort(vcat(parent.lin, item)), # lineage
-                        siblings(items, item) # Potential Next Nodes
+                        sort(vcat(parent.lin, i)), # lineage
+                        siblings(items, i, parent.lin) # Potential Next Nodes
                     )
-                    push!(levelrules,rule)
+                    push!(levelrules[Threads.threadid()],subrule)
                 end
             end
-            append!(rules,levelrules)
-            parents = levelrules
+            append!(rules,vcat(levelrules...))
+            parents = vcat(levelrules...)
         end
     end
     rules = DataFrame(
@@ -117,5 +123,5 @@ function apriori(txns::Transactions, min_support::Real, max_length::Int)::DataFr
             N = [rule.n for rule in rules],
             Length = [rule.len for rule in rules]
         )
-    return unique(rules)
+    return rules
 end
