@@ -37,24 +37,36 @@ struct Arule
 end
 
 """
-    apriori(txns::Transactions, min_support::Real, max_length::Int; minconf::Union{Real,Nothing}=nothing)
+    apriori(txns::Transactions, min_support::Union{Int,Float64}, max_length::Int)::DataFrame
 
 
 Identify association rules in a transactional dataset `txns`, with minimum support, `min_support`, 
 and maximum rule length, `max_length`.
 
+When an Int value is supplied to min_support, apriori will use absolute support (count) of transactions as minimum support.
+
+When a Float value is supplied, it will use relative support (percentage).
 """
-function apriori(txns::Transactions, min_support::Real, max_length::Int)::DataFrame
+function apriori(txns::Transactions, min_support::Union{Int,Float64}, max_length::Int)::DataFrame
     
     function siblings(items::Vector{Int},value::Int,lineage::Vector{Int})
         return setdiff(items, vcat(lineage,value))
     end
 
-    baselen = size(txns.matrix)[1]
+    # Use multiple dispatch to handle item filtering based on count support or percentage support
+    function filtersupport(num::Vector{Int},support::Vector{Float64},min_support::Int)
+        return findall(x -> x > min_support, num)
+    end
+    function filtersupport(num::Vector{Int},support::Vector{Float64},min_support::Float64)
+        return findall(x -> x > min_support, support)
+    end
+
+    # Find Base nodes
+    baselen = size(txns.matrix, 1)
     basenum = vec(sum(txns.matrix, dims=1))
     basesupport = basenum ./ baselen
 
-    items = findall(x -> x > min_support, basesupport)
+    items = filtersupport(basenum,basesupport,min_support)
     
     rules = Vector{Arule}()
 
@@ -69,10 +81,12 @@ function apriori(txns::Transactions, min_support::Real, max_length::Int)::DataFr
                 basenum[item], # N
                 1, # Length
                 Vector([item]), # Lineage
-                siblings(items,item,Vector{Int}()) # Potential Next Nodes
+                siblings(items,item,Vector{Int}()) # Candidate Nodes
             )
         push!(rules,rule)
     end
+    
+    # Find Child nodes
     if max_length > 1
         parents = rules
         for level in 2:max_length
@@ -83,6 +97,7 @@ function apriori(txns::Transactions, min_support::Real, max_length::Int)::DataFr
                 push!(levelrules,Arule[])
             end
             
+            # Use multitheading to find child nodes
             @threads for parent in parents
                 
                 mask = vec(all(txns.matrix[:, parent.lin] .!= 0, dims=2))
@@ -91,7 +106,7 @@ function apriori(txns::Transactions, min_support::Real, max_length::Int)::DataFr
                 subnum = vec(sum(subtrans, dims=1))
                 subsupport = subnum ./ baselen
 
-                subitems = findall(x -> x > min_support, subsupport)
+                subitems = filtersupport(subnum,subsupport,min_support)
                 subitems = filter(x -> (x in parent.cand), subitems)
                 for i in subitems
                     subrule = Arule(

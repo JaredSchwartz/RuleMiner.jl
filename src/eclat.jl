@@ -28,9 +28,25 @@ struct Itemset
     support::Int
 end
 
-# Function to find frequent itemsets using ECLAT from a sparse matrix
-function eclat(txns::Transactions, min_support::Int)
+"""
+    eclat(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
+
+
+Identify frequent itemsets in a transactional dataset `txns` with a minimum support: `min_support`.
+
+When an Int value is supplied to min_support, eclat will use absolute support (count) of transactions as minimum support.
+
+When a Float value is supplied, it will use relative support (percentage).
+"""
+function eclat(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
+
+    n_transactions = size(txns.matrix,1)
     
+    # Handle min_support as a float value
+    if min_support isa Float64
+        min_support = trunc(Int, min_support * n_transactions)
+    end
+
     # Calculate initial supports and sort the columns
     item_index = collect(1:size(txns.matrix, 2))
     item_supports = Dict(zip(item_index, vec(sum(txns.matrix, dims=1))))
@@ -61,7 +77,8 @@ function eclat(txns::Transactions, min_support::Int)
     
     result = DataFrame(
         Itemset = [getnames(x.items,txns) for x in result],
-        Support = [x.support for x in result]
+        Support = [x.support/n_transactions for x in result],
+        N = [x.support for x in result]
     )
     return result
 end
