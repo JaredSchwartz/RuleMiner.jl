@@ -26,6 +26,7 @@ export eclat
 struct Itemset
     items::Vector{Int}
     support::Int
+    len::Int
 end
 
 """
@@ -62,7 +63,7 @@ function eclat(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
             support = length(findall(all(trans[:, new_lineage] .== 1, dims=2)))
     
             if support >= min_support
-                set = Itemset(new_lineage,support)
+                set = Itemset(new_lineage,support,length(new_lineage))
                 push!(result,set)
                 new_items = items[i+1:end]
                 if !isempty(new_items)
@@ -78,7 +79,8 @@ function eclat(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
     result = DataFrame(
         Itemset = [getnames(x.items,txns) for x in result],
         Support = [x.support/n_transactions for x in result],
-        N = [x.support for x in result]
+        N = [x.support for x in result],
+        Length = [x.len for x in result]
     )
     return result
 end

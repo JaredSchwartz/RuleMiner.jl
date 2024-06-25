@@ -47,6 +47,7 @@ end
         @test sets.Itemset == [["beer"], ["bread"], ["cheese"], ["ham"], ["eggs"], ["eggs", "milk"], ["milk"]]
         @test sets.Support ≈ [0.3333333333333333, 0.3333333333333333, 0.3333333333333333, 0.3333333333333333, 0.5555555555555556, 0.4444444444444444, 0.5555555555555556]
         @test sets.N == [3, 3, 3, 3, 5, 4, 5]
+        @test sets.Length == [1, 1, 1, 1, 1, 2, 1]
     end
     
     @testset "asbolute support" begin
@@ -54,5 +55,6 @@ end
         @test sets.Itemset == [["beer"], ["bread"], ["cheese"], ["ham"], ["eggs"], ["eggs", "milk"], ["milk"]]
         @test sets.Support ≈ [0.3333333333333333, 0.3333333333333333, 0.3333333333333333, 0.3333333333333333, 0.5555555555555556, 0.4444444444444444, 0.5555555555555556]
         @test sets.N == [3, 3, 3, 3, 5, 4, 5]
+        @test sets.Length == [1, 1, 1, 1, 1, 2, 1]
     end
 end
