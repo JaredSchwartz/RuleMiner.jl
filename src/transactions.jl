@@ -39,8 +39,10 @@ end
 """
     load_transactions(file::String, delimiter::Char; id_col::Bool = false)::Transactions
 
-Read transaction data from a `file`` where each line is a list of items separated by a given `delimiter`
+Read transaction data from a `file` where each line is a list of items separated by a given `delimiter`
+
 If the first item of each list is a transaction identifier, set `id_col` to `true`
+
 Specify the number header lines to skip with `skiplines`
 """
 function load_transactions(file::String, delimiter::Char; id_col::Bool = false, skiplines::Int = 0)::Transactions
@@ -114,6 +116,7 @@ end
     transactions(df::DataFrame;indexcol::Union{Symbol,Nothing}=nothing)::Transactions
 
 Converts a one-hot encoded `DataFrame` object into a `Transactions` object
+
 Designate a column as an index column with `indexcol` 
 """
 function transactions(df::DataFrame;indexcol::Union{Symbol,Nothing}=nothing)::Transactions
