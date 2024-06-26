@@ -23,20 +23,9 @@
 
 module RuleMiner
 
-using DataFrames, LuxurySparse, StatsBase, Base.Threads
+using DataFrames, LuxurySparse, Mmap, Base.Threads
 
-struct Transactions
-    matrix::SparseMatrixCSC{Bool,Int64} # Sparse matrix showing the locations of the items (columns) in the transactions(rows)
-    colkeys::Dict{Int,String} # Dictionary mapping column indexes to their original values in the source
-    linekeys::Dict{Int,String} # Dictionary mapping line indexes to their original values in the source (or generated index #)
-end
-
-# Helper function to take indexes and return their column names
-function getnames(indexes::Vector{Int},txns::Transactions)
-    return getindex.(Ref(txns.colkeys), indexes)
-end
-
-include("loader.jl")
+include("transactions.jl")
 include("apriori.jl")
 include("eclat.jl")
 end
