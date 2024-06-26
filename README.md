@@ -1,6 +1,7 @@
 # RuleMiner.jl - Association Rule Mining in Julia
 [![Build Status](https://github.com/JaredSchwartz/RuleMiner.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/JaredSchwartz/RuleMiner.jl/actions/workflows/CI.yml?query=branch%3Amain)
 [![codecov](https://codecov.io/github/JaredSchwartz/RuleMiner.jl/graph/badge.svg?token=KDAVR32F6S)](https://codecov.io/github/JaredSchwartz/RuleMiner.jl)
+[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://jaredschwartz.github.io/RuleMiner.jl/dev/)
 
 ## About
 RuleMiner.jl is a Julia package for association rule and frequent itemset mining inspired by the [arules](https://github.com/mhahsler/arules) R package and [SPMF](https://www.philippe-fournier-viger.com/spmf/) Java library.
@@ -39,7 +40,7 @@ Generate association rules using _A Priori_ with 5% minimum support and a max ru
 arules = apriori(data, 0.05, 3)
 ```
 
-Generate frequent itemesets with a minimum support of 100 transacations using _ECLAT_
+Generate frequent itemesets with a minimum support of 100 transactions using _ECLAT_
 
 ```julia
 itemsets = eclat(data, 100)
