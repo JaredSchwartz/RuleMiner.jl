@@ -16,3 +16,7 @@ makedocs(
     ],
     warnonly = [:missing_docs, :cross_references],
 )
+
+deploydocs(
+    repo = "github.com/JaredSchwartz/RuleMiner.jl.git",
+)
