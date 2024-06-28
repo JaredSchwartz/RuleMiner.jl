@@ -47,17 +47,17 @@ When an Int value is supplied to min_support, apriori will use absolute support 
 
 When a Float value is supplied, it will use relative support (percentage).
 """
-function apriori(txns::Transactions, min_support::Union{Int,Float64}, max_length::Int)::DataFrame
+function apriori(txns::Transactions, min_support::Union{Int,Float64}, max_length::Int)
     
-    function siblings(items::Vector{Int},value::Int,lineage::Vector{Int})
+    function siblings(items::AbstractArray{Int},value::Int,lineage::Vector{Int})
         return setdiff(items, vcat(lineage,value))
     end
 
     # Use multiple dispatch to handle item filtering based on count support or percentage support
-    function filtersupport(num::Vector{Int},support::Vector{Float64},min_support::Int)
+    function filtersupport(num::AbstractArray{Int},support::Vector{Float64},min_support::Int)
         return findall(x -> x > min_support, num)
     end
-    function filtersupport(num::Vector{Int},support::Vector{Float64},min_support::Float64)
+    function filtersupport(num::AbstractArray{Int},support::Vector{Float64},min_support::Float64)
         return findall(x -> x > min_support, support)
     end
 
@@ -67,10 +67,10 @@ function apriori(txns::Transactions, min_support::Union{Int,Float64}, max_length
     basesupport = basenum ./ baselen
 
     items = filtersupport(basenum,basesupport,min_support)
-    
+
     rules = Vector{Arule}()
 
-    for item in items
+    for (index, item) in enumerate(items)
         rule = Arule(
                 Vector(String[]), # LHS
                 txns.colkeys[item], # RHS
@@ -80,12 +80,15 @@ function apriori(txns::Transactions, min_support::Union{Int,Float64}, max_length
                 1.0, # Lift (1 on base nodes)
                 basenum[item], # N
                 1, # Length
-                Vector([item]), # Lineage
-                siblings(items,item,Vector{Int}()) # Candidate Nodes
+                Vector([index]), # Lineage
+                siblings(1:length(items),index,Vector{Int}()) # Candidate Nodes
             )
         push!(rules,rule)
     end
     
+    subtxns = txns.matrix[:,items]
+    subtxns_key = Dict(zip(1:length(items),items))
+
     # Find Child nodes
     if max_length > 1
         parents = rules
@@ -100,8 +103,8 @@ function apriori(txns::Transactions, min_support::Union{Int,Float64}, max_length
             # Use multitheading to find child nodes
             @threads for parent in parents
                 
-                mask = vec(all(txns.matrix[:, parent.lin] .!= 0, dims=2))
-                subtrans = txns.matrix[mask, :]
+                mask = vec(all(subtxns[:, parent.lin] .!= 0, dims=2))
+                subtrans = subtxns[mask, :]
 
                 subnum = vec(sum(subtrans, dims=1))
                 subsupport = subnum ./ baselen
@@ -110,8 +113,8 @@ function apriori(txns::Transactions, min_support::Union{Int,Float64}, max_length
                 subitems = filter(x -> (x in parent.cand), subitems)
                 for i in subitems
                     subrule = Arule(
-                        getnames(parent.lin,txns), # LHS
-                        txns.colkeys[i], # RHS
+                        sort(getnames([subtxns_key[i] for i in parent.lin],txns)), # LHS
+                        txns.colkeys[subtxns_key[i]], # RHS
                         subsupport[i], # Support
                         subsupport[i] / parent.supp, # Confidence
                         parent.supp, # Coverage
@@ -119,7 +122,7 @@ function apriori(txns::Transactions, min_support::Union{Int,Float64}, max_length
                         subnum[i], # N
                         level, # length
                         sort(vcat(parent.lin, i)), # lineage
-                        siblings(items, i, parent.lin) # Potential Next Nodes
+                        siblings(subitems, i, parent.lin) # Potential Next Nodes
                     )
                     push!(levelrules[Threads.threadid()],subrule)
                 end
