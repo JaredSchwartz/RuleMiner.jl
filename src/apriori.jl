@@ -47,7 +47,7 @@ When an Int value is supplied to min_support, apriori will use absolute support 
 
 When a Float value is supplied, it will use relative support (percentage).
 """
-function apriori(txns::Transactions, min_support::Union{Int,Float64}, max_length::Int)
+function apriori(txns::Transactions, min_support::Union{Int,Float64}, max_length::Int)::DataFrame
     
     function siblings(items::AbstractArray{Int},value::Int,lineage::Vector{Int})
         return setdiff(items, vcat(lineage,value))
@@ -71,12 +71,13 @@ function apriori(txns::Transactions, min_support::Union{Int,Float64}, max_length
     basesupport = basenum ./ baselen
 
     items = filtersupport(basenum,basesupport,min_support)
+    subtxns = txns.matrix[:,items]
 
     rules = Vector{Arule}()
 
     for (index, item) in enumerate(items)
         rule = Arule(
-                Vector(String[]), # LHS
+                Vector{String}(), # LHS
                 txns.colkeys[item], # RHS
                 basesupport[item], # Support
                 basesupport[item], # Confidence (same as support on base nodes)
@@ -89,9 +90,6 @@ function apriori(txns::Transactions, min_support::Union{Int,Float64}, max_length
             )
         push!(rules,rule)
     end
-    
-    subtxns = txns.matrix[:,items]
-    subtxns_key = Dict(zip(1:length(items),items))
 
     # Find Child nodes
     if max_length > 1
@@ -107,7 +105,7 @@ function apriori(txns::Transactions, min_support::Union{Int,Float64}, max_length
             # Use multitheading to find child nodes
             @threads for parent in parents
                 
-                mask = vec(all(subtxns[:, parent.lin] .!= 0, dims=2))
+                mask = vec(all(subtxns[:, parent.lin], dims=2))
                 subtrans = subtxns[mask, :]
 
                 subnum = vec(sum(subtrans, dims=1))
@@ -117,8 +115,8 @@ function apriori(txns::Transactions, min_support::Union{Int,Float64}, max_length
                 subitems = filter(x -> (x in parent.cand), subitems)
                 for i in subitems
                     subrule = Arule(
-                        sort(getnames([subtxns_key[i] for i in parent.lin],txns)), # LHS
-                        txns.colkeys[subtxns_key[i]], # RHS
+                        getnames([items[i] for i in parent.lin],txns), # LHS
+                        txns.colkeys[items[i]], # RHS
                         subsupport[i], # Support
                         subsupport[i] / parent.supp, # Confidence
                         parent.supp, # Coverage
@@ -132,6 +130,7 @@ function apriori(txns::Transactions, min_support::Union{Int,Float64}, max_length
                 end
             end
             
+            # Ensure rules are unique
             unique_dict = Dict{UInt64, RuleMiner.Arule}()
             for rule in vcat(levelrules...)
                 rule_hash = rulehash(rule)
