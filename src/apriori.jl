@@ -53,6 +53,10 @@ function apriori(txns::Transactions, min_support::Union{Int,Float64}, max_length
         return setdiff(items, vcat(lineage,value))
     end
 
+    function rulehash(s)
+        return hash(vcat([getfield(s, f) for f in fieldnames(typeof(s))]))
+    end
+
     # Use multiple dispatch to handle item filtering based on count support or percentage support
     function filtersupport(num::AbstractArray{Int},support::Vector{Float64},min_support::Int)
         return findall(x -> x > min_support, num)
@@ -127,8 +131,16 @@ function apriori(txns::Transactions, min_support::Union{Int,Float64}, max_length
                     push!(levelrules[Threads.threadid()],subrule)
                 end
             end
-            append!(rules,vcat(levelrules...))
-            parents = vcat(levelrules...)
+            
+            unique_dict = Dict{UInt64, RuleMiner.Arule}()
+            for rule in vcat(levelrules...)
+                rule_hash = rulehash(rule)
+                unique_dict[rule_hash] = rule
+            end
+            unique_rules = collect(values(unique_dict))
+
+            append!(rules,unique_rules)
+            parents = unique_rules
         end
     end
     rules = DataFrame(
