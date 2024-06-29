@@ -25,7 +25,7 @@ julia> ]
 pkg> add RuleMiner
 ```
 ## Usage
-These examples use the `retail` dataset from the [Frequent Itemset Mining Implementenations (FIMI)](http://fimi.uantwerpen.be/data/) repository hoseted by the University of Antwerp.
+These examples use the `retail` dataset from the [Frequent Itemset Mining Implementenations (FIMI)](http://fimi.uantwerpen.be/data/) repository hosted by the University of Antwerp.
 ```julia
 using RuleMiner
 ```
