@@ -25,28 +25,71 @@ julia> ]
 pkg> add RuleMiner
 ```
 ## Usage
+These examples use the `retail` dataset from the [Frequent Itemset Mining Implementenations (FIMI)](http://fimi.uantwerpen.be/data/) repository from the University of Antwerp.
 ```julia
 using RuleMiner
 ```
 
-Load data to create a Transactions object or alternatively convert an existing 1-hot encoded DataFrame.
+Load data to create a Transactions object or alternatively convert an existing 1-hot encoded DataFrame. 
 
 ```julia
-data = load_transactions("retail.txt",',')
+data = load_transactions("retail.txt",' ')
 
 data = transactions(df)
 ```
 
-Generate association rules using _A Priori_ with 5% minimum support and a max rule length of 3.
+Generate association rules using _A Priori_ with 10% minimum support and a max rule length of 3.
 
 ```julia
-arules = apriori(data, 0.05, 3)
+arules = apriori(data, 0.1, 3)
+```
+Result:
+```
+13×8 DataFrame
+ Row │ LHS       RHS     Support   Confidence  Coverage  Lift       N      Length 
+     │ Array…    String  Float64   Float64     Float64   Float64    Int64  Int64  
+─────┼────────────────────────────────────────────────────────────────────────────
+   1 │ String[]  33      0.172036    0.172036  1.0          1.0     15167       1
+   2 │ String[]  39      0.176902    0.176902  1.0          1.0     15596       1
+   3 │ String[]  40      0.574794    0.574794  1.0          1.0     50675       1
+   4 │ String[]  42      0.169517    0.169517  1.0          1.0     14945       1
+   5 │ String[]  49      0.477927    0.477927  1.0          1.0     42135       1
+   6 │ ["40"]    42      0.129466    0.225239  0.574794  2482.19    11414       2
+   7 │ ["49"]    42      0.102289    0.214026  0.477927  2358.62     9018       2
+   8 │ ["39"]    40      0.117341    0.663311  0.176902   106.519   10345       2
+   9 │ ["40"]    49      0.330551    0.575076  0.574794  2668.42    29142       2
+  10 │ ["49"]    40      0.330551    0.691634  0.477927   111.067   29142       2
+  11 │ ["42"]    49      0.102289    0.603413  0.169517  2799.9      9018       2
+  12 │ ["40"]    39      0.117341    0.204144  0.574794    67.6607  10345       2
+  13 │ ["42"]    40      0.129466    0.763734  0.169517   122.645   11414       2
 ```
 
-Generate frequent itemsets with a minimum support of 100 transactions using _ECLAT_
+Generate frequent itemsets with a minimum support of 5,000 transactions using _ECLAT_
 
 ```julia
-itemsets = eclat(data, 100)
+itemsets = eclat(data, 5000)
+```
+Result:
+```
+15×4 DataFrame
+ Row │ Itemset             Support    N      Length 
+     │ Array…              Float64    Int64  Int64  
+─────┼──────────────────────────────────────────────
+   1 │ ["42"]              0.169517   14945       1
+   2 │ ["33"]              0.172036   15167       1
+   3 │ ["39"]              0.176902   15596       1
+   4 │ ["49"]              0.477927   42135       1
+   5 │ ["40"]              0.574794   50675       1
+   6 │ ["39", "49"]        0.0901068   7944       2
+   7 │ ["49", "40"]        0.330551   29142       2
+   8 │ ["39", "49", "40"]  0.0692135   6102       3
+   9 │ ["39", "40"]        0.117341   10345       2
+  10 │ ["42", "49"]        0.102289    9018       2
+  11 │ ["42", "49", "40"]  0.0835507   7366       3
+  12 │ ["42", "40"]        0.129466   11414       2
+  13 │ ["33", "49"]        0.0911277   8034       2
+  14 │ ["33", "49", "40"]  0.0612736   5402       3
+  15 │ ["33", "40"]        0.095903    8455       2
 ```
 ## Multithreading
 RuleMiner.jl makes use of Julia's native multithreading support for significant performance gains. Enabling multithreading is done by using the `-t` flag when launching Julia and either specifying the number of threads or passing in the `auto` argument to launch julia with all available threads.
