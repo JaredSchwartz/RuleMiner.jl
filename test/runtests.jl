@@ -90,19 +90,21 @@ end
     
     @testset "percentage support" begin
         sets = eclat(data,0.3)
-        sorted = sort(sets,[:N,:Itemset])
-        @test sets.Itemset == [["bread"], ["beer"], ["ham"], ["cheese"], ["milk"], ["milk", "eggs"], ["eggs"]]
-        @test sets.Support ≈ [0.3333333333333333, 0.3333333333333333, 0.3333333333333333, 0.3333333333333333, 0.5555555555555556, 0.4444444444444444, 0.5555555555555556]
-        @test sets.N == [3, 3, 3, 3, 5, 4, 5]
-        @test sets.Length == [1, 1, 1, 1, 1, 2, 1]
+        transform!(sets,:Itemset =>( x -> join.(x) ) => :SetHash)
+        sort!(sets,[:Length,:SetHash])
+        @test sets.Itemset == [["beer"], ["bread"], ["cheese"], ["eggs"], ["ham"], ["milk"], ["milk", "eggs"]]
+        @test sets.Support ≈ [0.3333333333333333, 0.3333333333333333, 0.3333333333333333, 0.5555555555555556, 0.3333333333333333, 0.5555555555555556, 0.4444444444444444]
+        @test sets.N == [3, 3, 3, 5, 3, 5, 4]
+        @test sets.Length == [1, 1, 1, 1, 1, 1, 2]
     end
     
     @testset "asbolute support" begin
         sets = eclat(data,3)
-        sorted = sort(sets,[:N,:Itemset])
-        @test sets.Itemset == [["bread"], ["beer"], ["ham"], ["cheese"], ["milk"], ["milk", "eggs"], ["eggs"]]
-        @test sets.Support ≈ [0.3333333333333333, 0.3333333333333333, 0.3333333333333333, 0.3333333333333333, 0.5555555555555556, 0.4444444444444444, 0.5555555555555556]
-        @test sets.N == [3, 3, 3, 3, 5, 4, 5]
-        @test sets.Length == [1, 1, 1, 1, 1, 2, 1]
+        transform!(sets,:Itemset =>( x -> join.(x) ) => :SetHash)
+        sort!(sets,[:Length,:SetHash])
+        @test sets.Itemset == [["beer"], ["bread"], ["cheese"], ["eggs"], ["ham"], ["milk"], ["milk", "eggs"]]
+        @test sets.Support ≈ [0.3333333333333333, 0.3333333333333333, 0.3333333333333333, 0.5555555555555556, 0.3333333333333333, 0.5555555555555556, 0.4444444444444444]
+        @test sets.N == [3, 3, 3, 5, 3, 5, 4]
+        @test sets.Length == [1, 1, 1, 1, 1, 1, 2]
     end
 end
