@@ -55,26 +55,33 @@ function eclat(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
     frequent_items = [item for item in item_index if item_supports[item] >= min_support]
     sorted_items = sort(frequent_items, by= x -> item_supports[x])
 
+
+    result = Vector{Itemset}([Itemset([item], item_supports[item], 1) for item in sorted_items])
+    result_lock = ReentrantLock()
+
     # Define recrusive eclat function and run it on the data
-    function eclat!(lineage::Vector{Int}, items::Vector{Int}, trans::SparseMatrixCSC{Bool, Int}, min_support::Int, result::Vector{Itemset})
-        for i in 1:length(items)
+    function eclat!(lineage::Vector{Int}, items::Vector{Int}, trans::SparseMatrixCSC{Bool, Int}, min_support::Int)
+        for i in eachindex(items)
             item = items[i]
             new_lineage = vcat(lineage, item)
             support = length(findall(all(trans[:, new_lineage] .== 1, dims=2)))
     
             if support >= min_support
-                set = Itemset(new_lineage,support,length(new_lineage))
-                push!(result,set)
+                set = Itemset(new_lineage, support, length(new_lineage))
+                lock(result_lock) do
+                    push!(result, set)
+                end
                 new_items = items[i+1:end]
                 if !isempty(new_items)
-                    eclat!(new_lineage, new_items, trans, min_support, result)
+                    eclat!(new_lineage, new_items, trans, min_support)
                 end
             end
         end
     end
 
-    result = Vector{Itemset}()
-    eclat!(Int[], sorted_items, txns.matrix, min_support, result)
+    @threads for i in eachindex(sorted_items)
+        eclat!([sorted_items[i]], sorted_items[i+1:end], txns.matrix, min_support)
+    end
     
     result = DataFrame(
         Itemset = [getnames(x.items,txns) for x in result],
