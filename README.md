@@ -1,6 +1,7 @@
 # RuleMiner.jl - Association Rule Mining in Julia
 [![Build Status](https://github.com/JaredSchwartz/RuleMiner.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/JaredSchwartz/RuleMiner.jl/actions/workflows/CI.yml?query=branch%3Amain)
 [![codecov](https://codecov.io/github/JaredSchwartz/RuleMiner.jl/graph/badge.svg?token=KDAVR32F6S)](https://codecov.io/github/JaredSchwartz/RuleMiner.jl)
+[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://jaredschwartz.github.io/RuleMiner.jl/stable/)
 [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://jaredschwartz.github.io/RuleMiner.jl/dev/)
 
 ## About
@@ -19,7 +20,9 @@ The package currently has support for these algorithms:
 
 ## Installation
 ```
-pkg> add "https://github.com/JaredSchwartz/RuleMiner.jl"
+julia> ]
+
+pkg> add RuleMiner
 ```
 ## Usage
 ```julia
@@ -40,13 +43,27 @@ Generate association rules using _A Priori_ with 5% minimum support and a max ru
 arules = apriori(data, 0.05, 3)
 ```
 
-Generate frequent itemesets with a minimum support of 100 transactions using _ECLAT_
+Generate frequent itemsets with a minimum support of 100 transactions using _ECLAT_
 
 ```julia
 itemsets = eclat(data, 100)
 ```
 ## Multithreading
-RuleMiner.jl makes use of Julia's native multithreading support. You will likely see performance gains by allocating Julia more threads at startup. See [this post](https://julialang.org/blog/2019/07/multithreading/) for more info on enabling multithreading in Julia.
+RuleMiner.jl makes use of Julia's native multithreading support for significant performance gains. Enabling multithreading is done by using the `-t` flag when launching Julia and either specifying the number of threads or passing in the `auto` argument to launch julia with all available threads.
+
+```bash
+$ julia -t auto
+```
+Once Julia is launched, you can can view the enabled threads with `nthreads()` from the `Base.Threads` module.
+```julia-repl
+julia> using Base.Threads
+
+julia> nthreads()
+```
+See [this post](https://julialang.org/blog/2019/07/multithreading/) for more info on multithreading in Julia.
+
+> [!TIP]
+> Multithreading can be configured for the VScode integrated terminal by setting the `julia.NumThreads` parameter in VScode settings.
 
 ## Future Work
 Support for the FP-Growth Algorithm is planned for RuleMiner 0.2.0. Future releases will support additional mining algorithms.
