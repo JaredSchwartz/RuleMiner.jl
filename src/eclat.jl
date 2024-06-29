@@ -64,7 +64,7 @@ function eclat(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
         for i in eachindex(items)
             item = items[i]
             new_lineage = vcat(lineage, item)
-            support = length(findall(all(trans[:, new_lineage] .== 1, dims=2)))
+            support = sum(all(trans[:, new_lineage], dims=2))
     
             if support >= min_support
                 set = Itemset(new_lineage, support, length(new_lineage))
