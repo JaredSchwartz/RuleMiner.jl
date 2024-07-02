@@ -46,7 +46,7 @@ Parameters:
 
 ## txns\_to\_df
 ```@docs
-transactions_to_df(txns::Transactions; indexcol::Bool= false)
+txns_to_df(txns::Transactions; indexcol::Bool= false)
 ```
 Parameters:
 - `txns`: The `Transactions` object to be converted.
