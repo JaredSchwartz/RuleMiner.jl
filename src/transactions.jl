@@ -22,7 +22,7 @@
 # SOFTWARE.
 
 
-export Transactions, getnames, load_transactions, transactions
+export Transactions, getnames, load_transactions, transactions, txns_to_df
 
 
 struct Transactions
@@ -37,7 +37,7 @@ function getnames(indexes::Vector{Int},txns::Transactions)
 end
 
 """
-    load_transactions(file::String, delimiter::Char; id_col::Bool = false)::Transactions
+    load_transactions(file::String, delimiter::Char; id_col::Bool= false)::Transactions
 
 Read transaction data from a `file` where each line is a list of items separated by a given `delimiter`
 
@@ -113,13 +113,13 @@ function load_transactions(file::String, delimiter::Char; id_col::Bool = false, 
 end
 
 """
-    transactions(df::DataFrame;indexcol::Union{Symbol,Nothing}=nothing)::Transactions
+    transactions(df::DataFrame; indexcol::Union{Symbol,Nothing}= nothing)::Transactions
 
 Converts a one-hot encoded `DataFrame` object into a `Transactions` object
 
 Designate a column as an index column with `indexcol` 
 """
-function transactions(df::DataFrame;indexcol::Union{Symbol,Nothing}=nothing)::Transactions
+function transactions(df::DataFrame; indexcol::Union{Symbol,Nothing}= nothing)::Transactions
     df = copy(df)
     if !isnothing(indexcol)
         lineindex = Dict(zip(1:length(df[:,indexcol]),string.(df[:,indexcol])))
@@ -132,4 +132,21 @@ function transactions(df::DataFrame;indexcol::Union{Symbol,Nothing}=nothing)::Tr
     matrix = Bool.(Matrix(df)) |> SparseMatrixCSC
 
     return Transactions(matrix,colindex,lineindex)
+end
+
+
+"""
+    txns_to_df(txns::Transactions; id_col::Bool= false)::DataFrame
+
+Convert a `Transactions` object to a `DataFrame`.
+Specify whether the `Transactions` `linekey` field should be included as an Index column with `indexcol`
+
+"""
+function txns_to_df(txns::Transactions; id_col::Bool= false)::DataFrame
+    df = DataFrame(Int.(Matrix(txns.matrix)),:auto)
+    rename!(df,txns.colkeys)
+    if id_col
+        insertcols!(df, 1, :Index => [txns.linekeys[i] for i in 1:nrow(df)])
+    end
+    return df
 end
