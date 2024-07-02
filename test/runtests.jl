@@ -27,6 +27,14 @@ using Test
             @test sort(collect(values(data.colkeys))) == ["bacon", "beer", "bread", "buns", "butter", "cheese", "eggs", "flour", "ham", "hamburger", "hot dogs", "ketchup", "milk", "mustard", "sugar", "turkey"]
             @test sort(collect(values(data.linekeys))) == ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
         end
+
+        @testset "n lines" begin
+            data = load_transactions(joinpath(@__DIR__,"files/data.txt"),',',nlines = 1)
+            @test size(data.matrix) == (1,3)
+            @test sum(data.matrix) == 3
+            @test sort(collect(values(data.colkeys))) == ["bread", "eggs", "milk"]
+            @test sort(collect(values(data.linekeys))) == ["1"]
+        end
     end
 
     @testset "convert df" begin

@@ -37,15 +37,17 @@ function getnames(indexes::Vector{Int},txns::Transactions)
 end
 
 """
-    load_transactions(file::String, delimiter::Char; id_col::Bool= false)::Transactions
+    load_transactions(file::String, delimiter::Char; id_col::Bool= false, skiplines::Int= 0, nlines::Int= 0)::Transactions
 
 Read transaction data from a `file` where each line is a list of items separated by a given `delimiter`
 
 If the first item of each list is a transaction identifier, set `id_col` to `true`
 
 Specify the number header lines to skip with `skiplines`
+
+Specify a specific number of lines to read with `nlines`
 """
-function load_transactions(file::String, delimiter::Char; id_col::Bool = false, skiplines::Int = 0)::Transactions
+function load_transactions(file::String, delimiter::Char; id_col::Bool = false, skiplines::Int = 0, nlines::Int = 0)::Transactions
 
     io = Mmap.mmap(file)
     
@@ -91,6 +93,9 @@ function load_transactions(file::String, delimiter::Char; id_col::Bool = false, 
                 value_index += 1
             end
             first_item = false
+        end
+        if nlines != 0 && line_number == abs(nlines)
+            break
         end
         line_number += 1
     end

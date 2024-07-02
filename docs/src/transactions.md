@@ -29,6 +29,7 @@ Parameters:
 - `delimiter`: Character used to separate items in each transaction
 - `id_col`: Set to true if the first item in each line is a transaction identifier (default: false)
 - `skiplines`: Number of header lines to skip (optional)
+- `nlines`:Number of lines to read (optional)
 
 Returns: 
 - `Transactions`: A Transactions object with a sparse matrix representing the treansactions (rows) and items (columns) as well as dictionary keys for the names of the rows and columns
