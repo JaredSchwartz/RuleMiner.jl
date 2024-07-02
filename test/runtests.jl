@@ -31,10 +31,9 @@ using Test
 
     @testset "convert df" begin
         data = load_transactions(joinpath(@__DIR__,"files/data.txt"),',')
-        dftest = DataFrame(Matrix(data.matrix),:auto)
-        rename!(dftest,data.colkeys)
-        mapcols!(ByRow(Int), dftest)
-        dftest_index = transform(dftest, :milk => (x -> (1:length(x)).+1110) => :Index)
+        dftest = txns_to_df(data)
+        data = load_transactions(joinpath(@__DIR__,"files/data_indexed.txt"),',';id_col = true)
+        dftest_index =  txns_to_df(data,id_col=true)
 
         @testset "without index" begin
             data = transactions(dftest)
