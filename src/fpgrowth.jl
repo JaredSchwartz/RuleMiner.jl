@@ -60,19 +60,14 @@ function make_FPTree(txns::Transactions, min_support::Int)
 
     tree = FPTree()
 
-    # Compute column sums
+    # Sort and filter items based on support
     col_sums = vec(sum(txns.matrix, dims=1))
-    
-    # Filter columns by minimum support
     frequent_cols = findall(col_sums .>= min_support)
-    
-    # Sort columns by frequency
     sorted_cols = sort(frequent_cols, by=i -> col_sums[i], rev=true)
-    
-    # Create a new sorted and filtered sparse matrix
+
     sorted_matrix = txns.matrix[:, sorted_cols]
     
-    # Populate col_mapping and preallocate header_table for frequent items
+    # Populate col_mapping and preallocate header_table
     tree.col_mapping = Dict{Int, Int}(sorted_idx => original_idx for (sorted_idx, original_idx) in enumerate(sorted_cols))
     
     tree.header_table = Dict{Int, Vector{FPNode}}(i => FPNode[] for i in 1:size(sorted_matrix, 2))
@@ -94,15 +89,14 @@ end
 
 
 function mine_frequent(tree::FPTree, suffix::Vector{Int}, min_support::Int)
-    # Initialize a dictionary to store frequent patterns and their support
+    
+    # Initialize a dictionary to store frequent patterns
     frequent_patterns = Dict{Vector{Int}, Int}()
     
-    # Iterate through each item in the tree's header table
     for (item, nodes) in tree.header_table
-        # Calculate the total support for this item
-        support = sum(node.support for node in nodes)
         
-        # Check if the item meets the minimum support threshold
+        support = sum(node.support for node in nodes)
+
         if support >= min_support
             # Map the item back to its original value
             original_item = tree.col_mapping[item]
