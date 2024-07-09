@@ -49,11 +49,13 @@ When a Float value is supplied, it will use relative support (percentage).
 """
 function apriori(txns::Transactions, min_support::Union{Int,Float64}, max_length::Int)::DataFrame
     
+    # Function to find siblings
     function siblings(items::AbstractArray{Int},value::Int,lineage::Vector{Int})
         return setdiff(items, vcat(lineage,value))
     end
 
-    function rulehash(s)
+    # Function to hash the rules to check uniqueness
+    function rulehash(s::Arule)
         return hash(vcat([getfield(s, f) for f in fieldnames(typeof(s))]))
     end
 
