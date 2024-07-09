@@ -12,6 +12,7 @@ makedocs(
         "Algorithms" => Any[
             "A Priori" => "algorithms/apriori.md",
             "ECLAT" => "algorithms/eclat.md",
+            "FP Growth" => "algorithms/fpgrowth.md"
         ],
     ],
     warnonly = [:missing_docs, :cross_references],

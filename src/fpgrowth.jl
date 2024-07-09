@@ -142,7 +142,16 @@ function mine_frequent(tree::FPTree, suffix::Vector{Int}, min_support::Int)
     return frequent_patterns
 end
 
-function fpgrowth(txns::Transactions, min_support::Union{Int,Float64})
+"""
+    fpgrowth(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
+
+Identify frequent itemsets in a transactional dataset `txns` with a minimum support: `min_support`.
+
+When an Int value is supplied to min_support, eclat will use absolute support (count) of transactions as minimum support.
+
+When a Float value is supplied, it will use relative support (percentage).
+"""
+function fpgrowth(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
 
     n_transactions = size(txns.matrix,1)
     
