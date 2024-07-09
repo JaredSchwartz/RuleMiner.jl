@@ -28,4 +28,5 @@ using DataFrames, LuxurySparse, Mmap, Base.Threads
 include("transactions.jl")
 include("apriori.jl")
 include("eclat.jl")
+include("fpgrowth.jl")
 end

@@ -17,7 +17,7 @@ Key features of RuleMiner.jl include:
 The package currently has support for these algorithms:
 - A Priori[^1]
 - ECLAT[^2]
-
+- FP-Growth[^3]
 ## Installation
 ```
 julia> ]
@@ -115,3 +115,5 @@ Support for the FP-Growth Algorithm is planned for RuleMiner 0.2.0. Future relea
 [^1]: Rakesh Agrawal and Srikant Ramakrishnan, "Fast Algorithms for Mining Association Rules in Large Databases," in Proceedings of the 20th International Conference On Very Large Data Bases (Morgan Kaufmann UK, 1994), 487–99.
 
 [^2]: Mohammed Zaki, "Scalable Algorithms for Association Mining," _IEEE Transactions on Knowledge and Data Engineering_ 12 (June 1, 2000): 372–90, https://doi.org/10.1109/69.846291.
+
+[^3]: Han, Jiawei, Jian Pei, and Yiwen Yin. “Mining Frequent Patterns without Candidate Generation.” SIGMOD Rec. 29, no. 2 (May 16, 2000): 1–12. https://doi.org/10.1145/335191.335372.
