@@ -17,7 +17,7 @@ Key features of RuleMiner.jl include:
 The package currently has support for these algorithms:
 - A Priori[^1]
 - ECLAT[^2]
-- FP Growth[^3]
+- FP-Growth[^3]
 ## Installation
 ```
 julia> ]
