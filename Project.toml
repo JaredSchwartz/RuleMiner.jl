@@ -1,7 +1,7 @@
 name = "RuleMiner"
 uuid = "26420b10-3f9f-4b54-bd85-e6b3d5a44d3c"
 authors = ["Jared Schwartz"]
-version = "0.1.1"
+version = "0.2.0"
 
 [deps]
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
