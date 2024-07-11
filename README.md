@@ -15,6 +15,7 @@ Key features of RuleMiner.jl include:
 
 ## Algorithms
 The package currently has support for these algorithms:
+
 **Frequent Itemset Mining**
 - A Priori[^1]
 - ECLAT[^2]
