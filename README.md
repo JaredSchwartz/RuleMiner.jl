@@ -19,8 +19,10 @@ The package currently has support for these algorithms:
 - A Priori[^1]
 - ECLAT[^2]
 - FP-Growth[^3]
+
 **Closed Itemset Mining**
-- FPClose
+- FPClose[^4]
+
 ## Installation
 ```
 julia> ]
