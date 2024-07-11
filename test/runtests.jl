@@ -92,6 +92,12 @@ end
     end
 end
 
+# Define Frequent Itemset results at support of 3/0.3
+freq_items = [["beer"], ["bread"], ["cheese"], ["eggs"], ["ham"], ["milk"], ["milk", "eggs"]]
+freq_supports = [0.3333333333333333, 0.3333333333333333, 0.3333333333333333, 0.5555555555555556, 0.3333333333333333, 0.5555555555555556, 0.4444444444444444]
+freq_N = [3, 3, 3, 5, 3, 5, 4]
+freq_length = [1, 1, 1, 1, 1, 1, 2]
+
 @testset "eclat.jl" begin
     data = load_transactions(joinpath(@__DIR__,"files/data.txt"),',')
     
@@ -99,43 +105,68 @@ end
         sets = eclat(data,0.3)
         transform!(sets,:Itemset =>( x -> join.(x) ) => :SetHash)
         sort!(sets,[:Length,:SetHash])
-        @test sets.Itemset == [["beer"], ["bread"], ["cheese"], ["eggs"], ["ham"], ["milk"], ["milk", "eggs"]]
-        @test sets.Support ≈ [0.3333333333333333, 0.3333333333333333, 0.3333333333333333, 0.5555555555555556, 0.3333333333333333, 0.5555555555555556, 0.4444444444444444]
-        @test sets.N == [3, 3, 3, 5, 3, 5, 4]
-        @test sets.Length == [1, 1, 1, 1, 1, 1, 2]
+        @test sets.Itemset == freq_items
+        @test sets.Support ≈ freq_supports
+        @test sets.N == freq_N
+        @test sets.Length == freq_length
     end
     
     @testset "asbolute support" begin
         sets = eclat(data,3)
         transform!(sets,:Itemset =>( x -> join.(x) ) => :SetHash)
         sort!(sets,[:Length,:SetHash])
-        @test sets.Itemset == [["beer"], ["bread"], ["cheese"], ["eggs"], ["ham"], ["milk"], ["milk", "eggs"]]
-        @test sets.Support ≈ [0.3333333333333333, 0.3333333333333333, 0.3333333333333333, 0.5555555555555556, 0.3333333333333333, 0.5555555555555556, 0.4444444444444444]
-        @test sets.N == [3, 3, 3, 5, 3, 5, 4]
-        @test sets.Length == [1, 1, 1, 1, 1, 1, 2]
+        @test sets.Itemset == freq_items
+        @test sets.Support ≈ freq_supports
+        @test sets.N == freq_N
+        @test sets.Length == freq_length
     end
 end
 
 @testset "fpgrowth.jl" begin
     data = load_transactions(joinpath(@__DIR__,"files/data.txt"),',')
-    
-    @testset "percentage support" begin
-        sets = fpgrowth(data,0.3)
-        transform!(sets,:Itemset =>( x -> join.(x) ) => :SetHash)
-        sort!(sets,[:Length,:SetHash])
-        @test sets.Itemset == [["beer"], ["bread"], ["cheese"], ["eggs"], ["ham"], ["milk"], ["milk", "eggs"]]
-        @test sets.Support ≈ [0.3333333333333333, 0.3333333333333333, 0.3333333333333333, 0.5555555555555556, 0.3333333333333333, 0.5555555555555556, 0.4444444444444444]
-        @test sets.N == [3, 3, 3, 5, 3, 5, 4]
-        @test sets.Length == [1, 1, 1, 1, 1, 1, 2]
+
+    @testset "fpgrowth" begin
+        @testset "percentage support" begin
+            sets = fpgrowth(data,0.3)
+            transform!(sets,:Itemset =>( x -> join.(x) ) => :SetHash)
+            sort!(sets,[:Length,:SetHash])
+            @test sets.Itemset == freq_items
+            @test sets.Support ≈ freq_supports
+            @test sets.N == freq_N
+            @test sets.Length == freq_length
+        end
+        
+        @testset "asbolute support" begin
+            sets = fpgrowth(data,3)
+            transform!(sets,:Itemset =>( x -> join.(x) ) => :SetHash)
+            sort!(sets,[:Length,:SetHash])
+            @test sets.Itemset == freq_items
+            @test sets.Support ≈ freq_supports
+            @test sets.N == freq_N
+            @test sets.Length == freq_length
+        end
     end
-    
-    @testset "asbolute support" begin
-        sets = fpgrowth(data,3)
-        transform!(sets,:Itemset =>( x -> join.(x) ) => :SetHash)
-        sort!(sets,[:Length,:SetHash])
-        @test sets.Itemset == [["beer"], ["bread"], ["cheese"], ["eggs"], ["ham"], ["milk"], ["milk", "eggs"]]
-        @test sets.Support ≈ [0.3333333333333333, 0.3333333333333333, 0.3333333333333333, 0.5555555555555556, 0.3333333333333333, 0.5555555555555556, 0.4444444444444444]
-        @test sets.N == [3, 3, 3, 5, 3, 5, 4]
-        @test sets.Length == [1, 1, 1, 1, 1, 1, 2]
+
+    @testset "fpclose" begin
+        @testset "percentage support" begin
+            sets = fpclose(data,0.3)
+            transform!(sets,:Itemset =>( x -> join.(x) ) => :SetHash)
+            sort!(sets,[:Length,:SetHash])
+            @test sets.Itemset == freq_items
+            @test sets.Support ≈ freq_supports
+            @test sets.N == freq_N
+            @test sets.Length == freq_length
+        end
+        
+        @testset "asbolute support" begin
+            sets = fpclose(data,3)
+            transform!(sets,:Itemset =>( x -> join.(x) ) => :SetHash)
+            sort!(sets,[:Length,:SetHash])
+            @test sets.Itemset == freq_items
+            @test sets.Support ≈ freq_supports
+            @test sets.N == freq_N
+            @test sets.Length == freq_length
+        end
     end
 end
+

@@ -15,9 +15,12 @@ Key features of RuleMiner.jl include:
 
 ## Algorithms
 The package currently has support for these algorithms:
+**Frequent Itemset Mining**
 - A Priori[^1]
 - ECLAT[^2]
 - FP-Growth[^3]
+**Closed Itemset Mining**
+- FPClose
 ## Installation
 ```
 julia> ]
@@ -112,8 +115,10 @@ See [this post](https://julialang.org/blog/2019/07/multithreading/) for more inf
 Support for the FP-Growth Algorithm is planned for RuleMiner 0.2.0. Future releases will support additional mining algorithms.
 
 ## References
-[^1]: Rakesh Agrawal and Srikant Ramakrishnan, "Fast Algorithms for Mining Association Rules in Large Databases," in Proceedings of the 20th International Conference On Very Large Data Bases (Morgan Kaufmann UK, 1994), 487–99.
+[^1]: Agrawal, Rakesh, and Ramakrishnan Srikant. “Fast Algorithms for Mining Association Rules in Large Databases.” In Proceedings of the 20th International Conference on Very Large Data Bases, 487–99. VLDB ’94. San Francisco, CA, USA: Morgan Kaufmann Publishers Inc., 1994.
 
-[^2]: Mohammed Zaki, "Scalable Algorithms for Association Mining," _IEEE Transactions on Knowledge and Data Engineering_ 12 (June 1, 2000): 372–90, https://doi.org/10.1109/69.846291.
+[^2]: Zaki, Mohammed. “Scalable Algorithms for Association Mining.” Knowledge and Data Engineering, IEEE Transactions On 12 (June 1, 2000): 372–90. https://doi.org/10.1109/69.846291.
 
 [^3]: Han, Jiawei, Jian Pei, and Yiwen Yin. “Mining Frequent Patterns without Candidate Generation.” SIGMOD Rec. 29, no. 2 (May 16, 2000): 1–12. https://doi.org/10.1145/335191.335372.
+
+[^4]: Grahne, Gösta, and Jianfei Zhu. “Fast Algorithms for Frequent Itemset Mining Using FP-Trees.” IEEE Transactions on Knowledge and Data Engineering 17, no. 10 (October 2005): 1347–62. https://doi.org/10.1109/TKDE.2005.166.
