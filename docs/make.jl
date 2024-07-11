@@ -9,10 +9,13 @@ makedocs(
     pages=[
         "Home" => "index.md",
         "Transactions Objects" => "transactions.md",
-        "Algorithms" => Any[
+        "Frequent Itemset Mining" => Any[
             "A Priori" => "algorithms/apriori.md",
             "ECLAT" => "algorithms/eclat.md",
-            "FP Growth" => "algorithms/fpgrowth.md"
+            "FP-Growth" => "algorithms/fpgrowth.md"
+        ],
+        "Closed Itemset Mining" => Any[
+            "FPClose" => "algorithms/fpclose.md"
         ],
     ],
     warnonly = [:missing_docs, :cross_references],
