@@ -62,8 +62,10 @@ using Test
     end
 end
 
+# Load Data Once for all Algorithm Tests
+data = load_transactions(joinpath(@__DIR__,"files/data.txt"),',')
+
 @testset "apriori.jl" begin
-    data = load_transactions(joinpath(@__DIR__,"files/data.txt"),',')
 
     @testset "percentage support" begin
         rules = apriori(data,0.3,5)
@@ -99,8 +101,7 @@ freq_N = [3, 3, 3, 5, 3, 5, 4]
 freq_length = [1, 1, 1, 1, 1, 1, 2]
 
 @testset "eclat.jl" begin
-    data = load_transactions(joinpath(@__DIR__,"files/data.txt"),',')
-    
+
     @testset "percentage support" begin
         sets = eclat(data,0.3)
         transform!(sets,:Itemset =>( x -> join.(x) ) => :SetHash)
@@ -123,7 +124,6 @@ freq_length = [1, 1, 1, 1, 1, 1, 2]
 end
 
 @testset "fpgrowth.jl" begin
-    data = load_transactions(joinpath(@__DIR__,"files/data.txt"),',')
 
     @testset "fpgrowth" begin
         @testset "percentage support" begin
@@ -167,6 +167,29 @@ end
             @test sets.N == freq_N
             @test sets.Length == freq_length
         end
+    end
+end
+
+@testset "charm.jl" begin
+        
+    @testset "percentage support" begin
+        sets = charm(data,0.3)
+        transform!(sets,:Itemset =>( x -> join.(x) ) => :SetHash)
+        sort!(sets,[:Length,:SetHash])
+        @test sets.Itemset == freq_items
+        @test sets.Support ≈ freq_supports
+        @test sets.N == freq_N
+        @test sets.Length == freq_length
+    end
+    
+    @testset "asbolute support" begin
+        sets = charm(data,3)
+        transform!(sets,:Itemset =>( x -> join.(x) ) => :SetHash)
+        sort!(sets,[:Length,:SetHash])
+        @test sets.Itemset == freq_items
+        @test sets.Support ≈ freq_supports
+        @test sets.N == freq_N
+        @test sets.Length == freq_length
     end
 end
 
