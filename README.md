@@ -23,6 +23,7 @@ The package currently has support for these algorithms:
 
 **Closed Itemset Mining**
 - FPClose[^4]
+- CHARM[^5]
 
 ## Installation
 ```
@@ -125,3 +126,5 @@ Support for the FP-Growth Algorithm is planned for RuleMiner 0.2.0. Future relea
 [^3]: Han, Jiawei, Jian Pei, and Yiwen Yin. “Mining Frequent Patterns without Candidate Generation.” SIGMOD Rec. 29, no. 2 (May 16, 2000): 1–12. https://doi.org/10.1145/335191.335372.
 
 [^4]: Grahne, Gösta, and Jianfei Zhu. “Fast Algorithms for Frequent Itemset Mining Using FP-Trees.” IEEE Transactions on Knowledge and Data Engineering 17, no. 10 (October 2005): 1347–62. https://doi.org/10.1109/TKDE.2005.166.
+
+[^5]: Zaki, Mohammed, and Ching-Jui Hsiao. “CHARM: An Efficient Algorithm for Closed Itemset Mining.” In Proceedings of the 2002 SIAM International Conference on Data Mining (SDM), 457–73. Proceedings. Society for Industrial and Applied Mathematics, 2002. https://doi.org/10.1137/1.9781611972726.27.
