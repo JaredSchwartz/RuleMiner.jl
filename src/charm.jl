@@ -97,7 +97,12 @@ function charm(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
         end
     end
     
-    # Process all itemsets in parallel from top level
+    # Add single-item frequent itemsets
+    for item in item_order
+        push!(closed_itemsets, ([item], supports[item]))
+    end
+    
+    # Parallel processing of top-level equivalence classes
     @threads for i in eachindex(item_order)
         item = item_order[i]
         charm!(closed_itemsets, [item], item_order[i+1:end])
