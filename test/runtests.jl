@@ -62,8 +62,10 @@ using Test
     end
 end
 
+# Load Data Once for all Algorithm Tests
+data = load_transactions(joinpath(@__DIR__,"files/data.txt"),',')
+
 @testset "apriori.jl" begin
-    data = load_transactions(joinpath(@__DIR__,"files/data.txt"),',')
 
     @testset "percentage support" begin
         rules = apriori(data,0.3,5)
@@ -93,18 +95,30 @@ end
 end
 
 # Define Frequent Itemset results at support of 3/0.3
-freq_items = [["beer"], ["bread"], ["cheese"], ["eggs"], ["ham"], ["milk"], ["milk", "eggs"]]
+freq_items = [["beer"], ["bread"], ["cheese"], ["eggs"], ["ham"], ["milk"], ["eggs", "milk"]]
 freq_supports = [0.3333333333333333, 0.3333333333333333, 0.3333333333333333, 0.5555555555555556, 0.3333333333333333, 0.5555555555555556, 0.4444444444444444]
 freq_N = [3, 3, 3, 5, 3, 5, 4]
 freq_length = [1, 1, 1, 1, 1, 1, 2]
 
+# Define Closed Itemset results at support of 2/0.2
+closed_items = [["beer"], ["bread"], ["cheese"], ["eggs"], ["ham"], ["ketchup"], ["milk"], ["bacon", "eggs"], ["beer", "hamburger"], ["beer", "milk"], ["bread", "ham"], ["cheese", "ham"], ["eggs", "milk"], ["eggs", "milk", "sugar"]]
+closed_supports = [0.3333333333333333, 0.3333333333333333, 0.3333333333333333, 0.5555555555555556, 0.3333333333333333, 0.2222222222222222, 0.5555555555555556, 0.2222222222222222, 0.2222222222222222, 0.2222222222222222, 0.2222222222222222, 0.2222222222222222, 0.4444444444444444, 0.2222222222222222]
+closed_N = [3, 3, 3, 5, 3, 2, 5, 2, 2, 2, 2, 2, 4, 2]
+closed_length = [1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 3]
+
+# Define cusutom itemset sorting function 
+function setsorter!(itemsets::DataFrame)
+    transform!(itemsets,:Itemset => ( x -> sort.(x) ) => :Itemset)
+    transform!(itemsets,:Itemset => ( x -> join.(x) ) => :SetHash)
+    sort!(itemsets,[:Length,:SetHash])
+    select!(itemsets,Not(:SetHash))
+end
+
 @testset "eclat.jl" begin
-    data = load_transactions(joinpath(@__DIR__,"files/data.txt"),',')
-    
+
     @testset "percentage support" begin
         sets = eclat(data,0.3)
-        transform!(sets,:Itemset =>( x -> join.(x) ) => :SetHash)
-        sort!(sets,[:Length,:SetHash])
+        setsorter!(sets)
         @test sets.Itemset == freq_items
         @test sets.Support ≈ freq_supports
         @test sets.N == freq_N
@@ -113,8 +127,7 @@ freq_length = [1, 1, 1, 1, 1, 1, 2]
     
     @testset "asbolute support" begin
         sets = eclat(data,3)
-        transform!(sets,:Itemset =>( x -> join.(x) ) => :SetHash)
-        sort!(sets,[:Length,:SetHash])
+        setsorter!(sets)
         @test sets.Itemset == freq_items
         @test sets.Support ≈ freq_supports
         @test sets.N == freq_N
@@ -123,13 +136,11 @@ freq_length = [1, 1, 1, 1, 1, 1, 2]
 end
 
 @testset "fpgrowth.jl" begin
-    data = load_transactions(joinpath(@__DIR__,"files/data.txt"),',')
 
     @testset "fpgrowth" begin
         @testset "percentage support" begin
             sets = fpgrowth(data,0.3)
-            transform!(sets,:Itemset =>( x -> join.(x) ) => :SetHash)
-            sort!(sets,[:Length,:SetHash])
+            setsorter!(sets)
             @test sets.Itemset == freq_items
             @test sets.Support ≈ freq_supports
             @test sets.N == freq_N
@@ -138,8 +149,7 @@ end
         
         @testset "asbolute support" begin
             sets = fpgrowth(data,3)
-            transform!(sets,:Itemset =>( x -> join.(x) ) => :SetHash)
-            sort!(sets,[:Length,:SetHash])
+            setsorter!(sets)
             @test sets.Itemset == freq_items
             @test sets.Support ≈ freq_supports
             @test sets.N == freq_N
@@ -149,24 +159,43 @@ end
 
     @testset "fpclose" begin
         @testset "percentage support" begin
-            sets = fpclose(data,0.3)
-            transform!(sets,:Itemset =>( x -> join.(x) ) => :SetHash)
-            sort!(sets,[:Length,:SetHash])
-            @test sets.Itemset == freq_items
-            @test sets.Support ≈ freq_supports
-            @test sets.N == freq_N
-            @test sets.Length == freq_length
+            sets = fpclose(data,0.2)
+            setsorter!(sets)
+            @test sets.Itemset == closed_items
+            @test sets.Support ≈ closed_supports
+            @test sets.N == closed_N
+            @test sets.Length == closed_length
         end
         
         @testset "asbolute support" begin
-            sets = fpclose(data,3)
-            transform!(sets,:Itemset =>( x -> join.(x) ) => :SetHash)
-            sort!(sets,[:Length,:SetHash])
-            @test sets.Itemset == freq_items
-            @test sets.Support ≈ freq_supports
-            @test sets.N == freq_N
-            @test sets.Length == freq_length
+            sets = fpclose(data,2)
+            setsorter!(sets)
+            @test sets.Itemset == closed_items
+            @test sets.Support ≈ closed_supports
+            @test sets.N == closed_N
+            @test sets.Length == closed_length
         end
+    end
+end
+
+@testset "charm.jl" begin
+        
+    @testset "percentage support" begin
+        sets = charm(data,0.2)
+        setsorter!(sets)
+        @test sets.Itemset == closed_items
+        @test sets.Support ≈ closed_supports
+        @test sets.N == closed_N
+        @test sets.Length == closed_length
+    end
+    
+    @testset "asbolute support" begin
+        sets = charm(data,2)
+        setsorter!(sets)
+        @test sets.Itemset == closed_items
+        @test sets.Support ≈ closed_supports
+        @test sets.N == closed_N
+        @test sets.Length == closed_length
     end
 end
 

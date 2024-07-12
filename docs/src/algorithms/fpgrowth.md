@@ -1,6 +1,6 @@
 # FP-Growth
 
-The fpgrowth function implements the FP-Growth (**F**requent **P**attern Growth) algorithm for mining frequent itemsets. This algorithm, proposed by Han et al. in 2000, is an efficient method for discovering frequent itemsets in a dataset without candidate generation. It is generally more efficient than other algorithms when transactions have large numbers of items
+The `fpgrowth` function implements the FP-Growth (**F**requent **P**attern Growth) algorithm for mining frequent itemsets. This algorithm, proposed by Han et al. in 2000, is an efficient method for discovering frequent itemsets in a dataset without candidate generation. It is generally more efficient than other algorithms when transactions have large numbers of items
 
 ```@docs
 fpgrowth(txns::Transactions, min_support::Union{Int,Float64})

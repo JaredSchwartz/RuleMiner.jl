@@ -23,10 +23,11 @@
 
 module RuleMiner
 
-using DataFrames, LuxurySparse, Mmap, Base.Threads
+using DataFrames, LuxurySparse, Mmap, Base.Threads, SparseArrays
 
 include("transactions.jl")
 include("apriori.jl")
 include("eclat.jl")
 include("fpgrowth.jl")
+include("charm.jl")
 end
