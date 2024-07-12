@@ -63,8 +63,17 @@ function charm(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
             end
             
             lock(itemsets_lock) do
-                is_closed = all(s -> s != support || !issubset(Set(new_itemset), Set(itemset)), 
-                                (itemset for (itemset, s) in closed_itemsets))
+                is_closed = true
+                for (existing_itemset, existing_support) in closed_itemsets
+                    if support == existing_support
+                        if issubset(Set(new_itemset), Set(existing_itemset))
+                            is_closed = false
+                            break
+                        elseif issubset(Set(existing_itemset), Set(new_itemset))
+                            filter!(x -> x[1] != existing_itemset, closed_itemsets)
+                        end
+                    end
+                end
                 if is_closed
                     push!(closed_itemsets, (new_itemset, support))
                 end
