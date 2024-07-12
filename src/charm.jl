@@ -86,15 +86,11 @@ function charm(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
     end
     
     function intersect_tidsets(itemset::Vector{Int})::BitSet
-        if length(itemset) == 1
-            return tidsets[itemset[1]]
-        else
-            result = copy(tidsets[itemset[1]])
-            for item in itemset[2:end]
-                intersect!(result, tidsets[item])
-            end
-            return result
+        result = copy(tidsets[itemset[1]])
+        for item in itemset[2:end]
+            intersect!(result, tidsets[item])
         end
+        return result
     end
     
     # Add single-item frequent itemsets
