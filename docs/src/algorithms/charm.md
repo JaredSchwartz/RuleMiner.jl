@@ -1,4 +1,4 @@
-# FPClose
+# CHARM
 
 The `charm` function implements the CHARM (**C**losed, **H**ash-based **A**ssociation **R**ule **M**ining) algorithm for mining closed itemsets proposed by Mohammad Zaki and Ching-Jui Hsiao in 2002. This algorithm uses a depth-first search with hash-based approaches to pruning non-closed itemsets and is particularly efficient for dense datasets.
 

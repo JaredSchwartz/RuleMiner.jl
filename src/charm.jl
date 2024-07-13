@@ -23,6 +23,15 @@
 
 export charm
 
+"""
+    charm(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
+
+Identify closed frequent itemsets in a transactional dataset `txns` with a minimum support: `min_support`.
+
+When an Int value is supplied to min_support, CHARM will use absolute support (count) of transactions as minimum support.
+
+When a Float value is supplied, it will use relative support (percentage).
+"""
 function charm(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
     n_transactions, n_items = size(txns.matrix)
 

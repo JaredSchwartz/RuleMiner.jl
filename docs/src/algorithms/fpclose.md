@@ -1,6 +1,5 @@
 # FPClose
 
-
 The `fpclose` function implements the FPClose (**F**requent **P**attern Close) algorithm for mining closed itemsets. This algorithm, proposed by Gösta Grahne and Jianfei Zhu in 2005, builds on the FP-Growth alogrithm to discover closed itemsets in a dataset without candidate generation.
 
 

@@ -199,3 +199,23 @@ end
     end
 end
 
+@testset "carpenter.jl" begin
+        
+    @testset "percentage support" begin
+        sets = carpenter(data,0.2)
+        setsorter!(sets)
+        @test sets.Itemset == closed_items
+        @test sets.Support ≈ closed_supports
+        @test sets.N == closed_N
+        @test sets.Length == closed_length
+    end
+    
+    @testset "asbolute support" begin
+        sets = carpenter(data,2)
+        setsorter!(sets)
+        @test sets.Itemset == closed_items
+        @test sets.Support ≈ closed_supports
+        @test sets.N == closed_N
+        @test sets.Length == closed_length
+    end
+end
