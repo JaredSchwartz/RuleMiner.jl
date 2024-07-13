@@ -30,4 +30,5 @@ include("apriori.jl")
 include("eclat.jl")
 include("fpgrowth.jl")
 include("charm.jl")
+include("carpenter.jl")
 end

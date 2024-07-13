@@ -15,7 +15,9 @@ makedocs(
             "FP-Growth" => "algorithms/fpgrowth.md"
         ],
         "Closed Itemset Mining" => Any[
-            "FPClose" => "algorithms/fpclose.md"
+            "FPClose" => "algorithms/fpclose.md",
+            "CHARM" => "algorithms/charm.md",
+            "Carpenter" => "algorithms/carpenter.md"
         ],
     ],
     warnonly = [:missing_docs, :cross_references],
