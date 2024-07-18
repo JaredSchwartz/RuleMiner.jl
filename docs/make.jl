@@ -17,6 +17,7 @@ makedocs(
         "Closed Itemset Mining" => Any[
             "FPClose" => "algorithms/fpclose.md",
             "CHARM" => "algorithms/charm.md",
+            "LCM" => "algorithms/lcm.md",
             "Carpenter" => "algorithms/carpenter.md"
         ],
     ],

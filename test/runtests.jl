@@ -219,3 +219,24 @@ end
         @test sets.Length == closed_length
     end
 end
+
+@testset "lcm.jl" begin
+        
+    @testset "percentage support" begin
+        sets = LCM(data,0.2)
+        setsorter!(sets)
+        @test sets.Itemset == closed_items
+        @test sets.Support ≈ closed_supports
+        @test sets.N == closed_N
+        @test sets.Length == closed_length
+    end
+    
+    @testset "asbolute support" begin
+        sets = LCM(data,2)
+        setsorter!(sets)
+        @test sets.Itemset == closed_items
+        @test sets.Support ≈ closed_supports
+        @test sets.N == closed_N
+        @test sets.Length == closed_length
+    end
+end
