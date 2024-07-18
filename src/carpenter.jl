@@ -32,68 +32,63 @@ When an Int value is supplied to min_support, carpenter will use absolute suppor
 
 When a Float value is supplied, it will use relative support (percentage).
 """
-function carpenter(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
-    n_transactions = size(txns.matrix, 1)
-    n_items = size(txns.matrix, 2)
+function carpenter(txns::Transactions, min_support::Union{Int,Float64})
+    n_transactions, n_items = size(txns.matrix)
     
     if min_support isa Float64
         min_support = ceil(Int, min_support * n_transactions)
     end
     
-    function carpenter!(closed_itemsets::Dict{Vector{Int}, Int}, X::Vector{Int}, R::Vector{Int})
+    function carpenter!(closed_itemsets::Dict{Vector{Int}, Int}, X::Vector{Int}, R::Vector{Int},Lock::ReentrantLock)
+       
+        # Pruning 3: Early return if itemset is already present in the output
+        if haskey(closed_itemsets,X)
+            return
+        end
         
-        # Pruning 3: Check if this itemset has been discovered before
-        if haskey(closed_itemsets, X)
+        # Find transactions with the itemset and calculate support
+        rows = BitVector(vec(all(txns.matrix[:, X], dims=2)))
+        support_X = sum(rows)
+        
+        # Pruning 1: Early return if the itemset is not frequent
+        if support_X < min_support
             return
         end
     
-       # Calculate support for current itemset
-       support_X = sum(all(txns.matrix[:,X], dims=2))
-            
-       # Pruning 1: Remove infrequent itemsets
-       if support_X < min_support
-           return
-       end
-       
-       # Check if X is closed (additional pruning step not in the paper)
-       for item in setdiff(1:n_items, X)
-           if sum(all(txns.matrix[:,vcat(X, item)], dims=2)) == support_X
-               return
-           end
-       end
-    
-       # Pruning 2: Find items that can be added without changing support
-       Y = Int[]
-       for item in R
-           if sum(all(txns.matrix[:,vcat(X, item)], dims=2)) == support_X
-               push!(Y, item)
-           end
-       end
+        # Pruning 2: Find items that can be added without changing support
+        mask = vec(sum(txns.matrix[rows, R], dims=1)) .== support_X
+        Y = R[mask]
 
-
-       # Add to itemsets
-       closed_itemsets[X] = support_X
-       
-       # Recursive enumeration
-       for i in setdiff(R, Y)
-           if i > maximum(X)
-            carpenter!(closed_itemsets,vcat(X, i), filter(j -> j > i, R))
-           end
-       end
+        # Add X to itemsets if it's closed (Y is empty)
+        if isempty(Y) 
+            lock(Lock) do
+            closed_itemsets[X] = support_X
+            end
+        # If Y is not empty, add the itemset's closure (X ∪ Y)
+        else 
+            lock(Lock) do
+            closed_itemsets[sort(vcat(X, Y))] = support_X
+            end
+        end
+        
+        # Recursive enumeration
+        for i in setdiff(R, Y)
+            carpenter!(closed_itemsets, sort(vcat(X, i)), setdiff(R, [i]),Lock)
+        end
     end
 
+    allitems = collect(1:n_items)
+    frequent_items = findall(vec(sum(txns.matrix, dims=1)) .>= min_support)
+
+    DictLock = ReentrantLock()
     itemsets = Dict{Vector{Int}, Int}()
 
-    supports = vec(sum(txns.matrix, dims=1))
-    items = findall(x -> x >= min_support, supports)
-
-    # Start mining with individual items
-    for item in items
-        carpenter!(itemsets, [item], collect(item+1:n_items))
+    @threads for item in frequent_items
+        carpenter!(itemsets, [item], setdiff(allitems, [item]), DictLock)
     end
     
     df = DataFrame(
-        Itemset = [getnames(pattern,txns) for pattern in keys(itemsets)],
+        Itemset = [getnames(pattern, txns) for pattern in keys(itemsets)],
         Support = [count / n_transactions for count in values(itemsets)],
         N = collect(values(itemsets)),
         Length = [length(pattern) for pattern in keys(itemsets)]
@@ -103,5 +98,3 @@ function carpenter(txns::Transactions, min_support::Union{Int,Float64})::DataFra
     
     return df
 end
-
-
