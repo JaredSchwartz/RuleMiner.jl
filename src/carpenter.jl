@@ -83,8 +83,12 @@ function carpenter(txns::Transactions, min_support::Union{Int,Float64})
     DictLock = ReentrantLock()
     itemsets = Dict{Vector{Int}, Int}()
 
-    @threads for item in frequent_items
-        carpenter!(itemsets, [item], setdiff(allitems, [item]), DictLock)
+    @sync begin
+        for item in frequent_items
+            Threads.@spawn begin
+                carpenter!(itemsets, [item], setdiff(allitems, [item]), DictLock)
+            end
+        end
     end
     
     df = DataFrame(

@@ -108,9 +108,13 @@ function charm(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
     end
     
     # Parallel processing of top-level equivalence classes
-    @threads for i in eachindex(item_order)
-        item = item_order[i]
-        charm!(closed_itemsets, [item], item_order[i+1:end])
+    @sync begin
+        for i in eachindex(item_order)
+            Threads.@spawn begin
+                item = item_order[i]
+                charm!(closed_itemsets, [item], item_order[i+1:end])
+            end
+        end
     end
     
     result_df = DataFrame(

@@ -105,30 +105,34 @@ function apriori(txns::Transactions, min_support::Union{Int,Float64}, max_length
             end
             
             # Use multitheading to find child nodes
-            @threads for parent in parents
-                
-                mask = vec(all(subtxns[:, parent.lin], dims=2))
-                subtrans = subtxns[mask, :]
 
-                subnum = vec(sum(subtrans, dims=1))
-                subsupport = subnum ./ baselen
+            @sync begin
+                for parent in parents
+                    Threads.@spawn begin
+                        mask = vec(all(subtxns[:, parent.lin], dims=2))
+                        subtrans = subtxns[mask, :]
 
-                subitems = filtersupport(subnum,subsupport,min_support)
-                subitems = filter(x -> (x in parent.cand), subitems)
-                for i in subitems
-                    subrule = Arule(
-                        getnames([items[i] for i in parent.lin],txns), # LHS
-                        txns.colkeys[items[i]], # RHS
-                        subsupport[i], # Support
-                        subsupport[i] / parent.supp, # Confidence
-                        parent.supp, # Coverage
-                        (subsupport[i] / parent.supp) / basesupport[i], # Lift
-                        subnum[i], # N
-                        level, # length
-                        sort(vcat(parent.lin, i)), # lineage
-                        siblings(subitems, i, parent.lin) # Potential Next Nodes
-                    )
-                    push!(levelrules[Threads.threadid()],subrule)
+                        subnum = vec(sum(subtrans, dims=1))
+                        subsupport = subnum ./ baselen
+
+                        subitems = filtersupport(subnum,subsupport,min_support)
+                        subitems = filter(x -> (x in parent.cand), subitems)
+                        for i in subitems
+                            subrule = Arule(
+                                getnames([items[i] for i in parent.lin],txns), # LHS
+                                txns.colkeys[items[i]], # RHS
+                                subsupport[i], # Support
+                                subsupport[i] / parent.supp, # Confidence
+                                parent.supp, # Coverage
+                                (subsupport[i] / parent.supp) / basesupport[i], # Lift
+                                subnum[i], # N
+                                level, # length
+                                sort(vcat(parent.lin, i)), # lineage
+                                siblings(subitems, i, parent.lin) # Potential Next Nodes
+                            )
+                            push!(levelrules[Threads.threadid()],subrule)
+                        end
+                    end
                 end
             end
             

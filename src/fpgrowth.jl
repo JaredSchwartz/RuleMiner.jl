@@ -77,11 +77,15 @@ tree.header_table = Dict{Int, Vector{FPNode}}(i => FPNode[] for i in 1:size(sort
 # Insert transactions into the tree
 n_rows = size(sorted_matrix, 1)
 
-@threads for row in 1:n_rows
-    transaction = findall(sorted_matrix[row, :])
-    if !isempty(transaction)
-        lock(tree.lock) do
-            insert_transaction!(tree, transaction)
+@sync begin
+    for row in 1:n_rows
+        Threads.@spawn begin
+            transaction = findall(sorted_matrix[row, :])
+            if !isempty(transaction)
+                lock(tree.lock) do
+                    insert_transaction!(tree, transaction)
+                end
+            end
         end
     end
 end

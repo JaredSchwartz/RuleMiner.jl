@@ -79,8 +79,12 @@ function eclat(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
         end
     end
 
-    @threads for i in eachindex(sorted_items)
-        eclat!([sorted_items[i]], sorted_items[i+1:end], txns.matrix, min_support)
+    @sync begin
+        for i in eachindex(sorted_items)
+            Threads.@spawn begin
+                eclat!([sorted_items[i]], sorted_items[i+1:end], txns.matrix, min_support)
+            end
+        end
     end
     
     result = DataFrame(
