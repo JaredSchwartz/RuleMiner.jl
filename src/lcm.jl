@@ -91,7 +91,7 @@ function LCM(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
     # Start the LCM process with top-level equivalence class
     @sync begin
         for item in sorted_items
-            @spawn begin
+            Threads.@spawn begin
                 tidset = BitVector(txns.matrix[:, item])
                 lcm!(results,[item], tidset)
             end
