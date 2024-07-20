@@ -20,7 +20,7 @@ A DataFrame object with four columns:
 - `N`: Absolute support count of the itemset
 - `Length`: Number of items in the itemset
 
-Algorithm Overview
+## Algorithm Overview
 
 1. The function starts by initializing tidsets (transaction ID sets) for each item.
 2. It then generates an ordered list of frequent items based on the minimum support threshold.
@@ -28,7 +28,7 @@ Algorithm Overview
 4. For each itemset, it checks if it's closed by comparing it with previously found closed itemsets.
 5. The process continues recursively, building larger itemsets from smaller ones.
 
-
+## Usage Example
 ```julia
 # Load transactions
 txns = load_transactions("transactions.txt", ' ')

@@ -28,102 +28,113 @@ export charm
 
 Identify closed frequent itemsets in a transactional dataset `txns` with a minimum support: `min_support`.
 
-When an Int value is supplied to min_support, CHARM will use absolute support (count) of transactions as minimum support.
-
+When an Int value is supplied to min_support, charm will use absolute support (count) of transactions as minimum support.
 When a Float value is supplied, it will use relative support (percentage).
 """
 function charm(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
     n_transactions, n_items = size(txns.matrix)
 
+    # Convert percentage support to absolute count if necessary
     if min_support isa Float64
         min_support = ceil(Int, min_support * n_transactions)
     end
     
-    tidsets = [BitSet(txns.matrix.rowval[nzrange(txns.matrix, col)]) for col in 1:n_items]
-    supports = [length(tidset) for tidset in tidsets]
+    # Create tidsets (transaction ID sets) for each item
+    tidsets = [BitSet(findall(txns.matrix[:,col])) for col in 1:n_items]
+    supports = vec(sum(txns.matrix,dims=1))
+
+    # Sort items by support in ascending order, keeping only frequent items
     item_order = sort(findall(s -> s >= min_support, supports), by=i -> supports[i])
     
-    closed_itemsets = Vector{Tuple{Vector{Int}, Int}}()
-    itemsets_lock = ReentrantLock()
+    # Initialize results dictionary and threading lock
+    Results = Dict{Vector{Int}, Int}()
+    ThreadLock = ReentrantLock()
     
-    function charm!(closed_itemsets::Vector{Tuple{Vector{Int}, Int}}, prefix::Vector{Int}, eq_class::Vector{Int})
+    function charm!(closed_itemsets::Dict{Vector{Int}, Int}, prefix::Vector{Int}, eq_class::Vector{Int})
         for (i, item) in enumerate(eq_class)
+            
+            # Create new itemset by adding current item to prefix
             new_itemset = vcat(prefix, item)
-            new_tidset = intersect_tidsets(new_itemset)
+            new_tidset = intersect(tidsets[new_itemset]...)
             support = length(new_tidset)
             
-            if support < min_support
-                continue
-            end
+            # Skip infrequent itemsets
+            support < min_support && continue
             
             new_eq_class = Int[]
             for j in (i+1):length(eq_class)
+
+                # Generate itemset, tidset, and support for new items in the next eq class
                 other_item = eq_class[j]
                 other_tidset = intersect(new_tidset, tidsets[other_item])
                 other_support = length(other_tidset)
                 
-                if other_support >= min_support
-                    if support == other_support
-                        push!(new_itemset, other_item)
-                    else
-                        push!(new_eq_class, other_item)
-                    end
+                # Skip infrequent items
+                other_support < min_support && continue
+
+                if support == other_support
+                    # If supports are equal, add item to current itemset
+                    push!(new_itemset, other_item)
+                else
+                    # Otherwise, add to new equivalence class for further processing
+                    push!(new_eq_class, other_item)
                 end
             end
             
-            lock(itemsets_lock) do
-                is_closed = true
-                for (existing_itemset, existing_support) in closed_itemsets
-                    if support == existing_support
-                        if issubset(Set(new_itemset), Set(existing_itemset))
-                            is_closed = false
-                            break
-                        elseif issubset(Set(existing_itemset), Set(new_itemset))
-                            filter!(x -> x[1] != existing_itemset, closed_itemsets)
-                        end
-                    end
-                end
-                if is_closed
-                    push!(closed_itemsets, (new_itemset, support))
-                end
+            # Update closed itemsets list, ensuring thread safety
+            lock(ThreadLock) do
+                update_closed_itemsets!(closed_itemsets, new_itemset, support)
             end
             
-            if !isempty(new_eq_class)
-                charm!(closed_itemsets, new_itemset, new_eq_class)
-            end
+            # Recursively process new equivalence class if non-empty
+            !isempty(new_eq_class) && charm!(closed_itemsets, new_itemset, new_eq_class)
         end
     end
-    
-    function intersect_tidsets(itemset::Vector{Int})::BitSet
-        result = copy(tidsets[itemset[1]])
-        for item in itemset[2:end]
-            intersect!(result, tidsets[item])
+
+    # Helper function to update closed itemsets
+    function update_closed_itemsets!(closed_itemsets, new_itemset, support)
+        new_set = Set(new_itemset)
+        for (existing_itemset, existing_support) in closed_itemsets
+            
+            # Only compare itemsets with equal support
+            support != existing_support && continue
+
+            existing_set = Set(existing_itemset)
+            
+            # If new itemset is a subset of an existing one, it's not closed
+            issubset(new_set, existing_set) && return
+            
+            # If an existing itemset is a subset of the new one, remove it
+            if issubset(existing_set, new_set)
+                delete!(closed_itemsets, existing_itemset)
+            end
         end
-        return result
+        
+        # If we reach here, the new itemset is closed, so add it
+        closed_itemsets[new_itemset] = support
     end
     
     # Add single-item frequent itemsets
     for item in item_order
-        push!(closed_itemsets, ([item], supports[item]))
+        Results[[item]] = supports[item]
     end
     
     # Parallel processing of top-level equivalence classes
     @sync begin
-        for i in eachindex(item_order)
-            Threads.@spawn begin
-                item = item_order[i]
-                charm!(closed_itemsets, [item], item_order[i+1:end])
-            end
+        for (i, item) in enumerate(item_order)
+            Threads.@spawn charm!(Results, [item], item_order[i+1:end])
         end
     end
     
+    # Create the result DataFrame
     result_df = DataFrame(
-        Itemset = [getnames(itemset, txns) for (itemset, _) in closed_itemsets],
-        Support = [support / n_transactions for (_, support) in closed_itemsets],
-        N = [support for (_, support) in closed_itemsets],
-        Length = [length(itemset) for (itemset, _) in closed_itemsets]
+        Itemset = [getnames(itemset, txns) for itemset in keys(Results)],
+        Support = [support / n_transactions for support in values(Results)],
+        N = collect(values(Results)),
+        Length = [length(itemset) for itemset in keys(Results)]
     )
     
+    # Sort results by support in descending order
     sort!(result_df, :N, rev=true)
     return result_df
 end

@@ -21,7 +21,7 @@ A DataFrame object with four columns:
 - `N`: Absolute support count of the itemset
 - `Length`: Number of items in the itemset
 
-Algorithm Overview
+## Algorithm Overview
 
 1. The function starts by identifying frequent items based on the minimum support threshold.
 2. It then recursively explores the search space, using a depth-first approach.
@@ -32,6 +32,7 @@ Algorithm Overview
     - It stops exploring when the support falls below the minimum threshold.
 5. The process continues until all frequent closed itemsets are discovered.
 
+## Usage Example
 ```julia
 # Load transactions
 txns = load_transactions("transactions.txt", ' ')

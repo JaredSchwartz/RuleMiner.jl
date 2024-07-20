@@ -2,7 +2,6 @@
 
 The `eclat` function implements the **E**quivalence **CLA**ss **T**ransformation algorithm for frequent itemset mining proposed by Mohammad Zaki in 2000. This algorithm identifies frequent itemsets in a dataset utilizing a column-first search and supplied minimum support.
 
-## Function signature
 ```@docs
 eclat(txns::Transactions, min_support::Union{Int,Float64})
 ```

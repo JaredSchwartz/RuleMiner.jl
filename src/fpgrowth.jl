@@ -1,5 +1,5 @@
 # fpgrowth.jl
-# FP Growth mining in Julia
+# FP tree-based mining in Julia
 #
 # Copyright (c) 2024 Jared Schwartz
 #
@@ -41,7 +41,7 @@ mutable struct FPTree
     FPTree() = new(FPNode(-1), Dict{Int, Vector{FPNode}}(), ReentrantLock(), Dict{Int, Int}())
 end
 
-# FP Growth
+# Helper Functions
 # -----------------
 function insert_transaction!(tree::FPTree, transaction::Vector{Int}, count::Int=1)
     node = tree.root
@@ -124,40 +124,16 @@ end
 
 # FP Growth
 # -----------------
-function mine_frequent(tree::FPTree, suffix::Vector{Int}, min_support::Int)
-    frequent_patterns = Dict{Vector{Int}, Int}()
-    
-    for (item, nodes) in tree.header_table
-        support = sum(node.support for node in nodes)
-
-        if support >= min_support
-            original_item = tree.col_mapping[item]
-            new_suffix = vcat([original_item], suffix)
-            frequent_patterns[new_suffix] = support
-            
-            # Create and mine conditional FP-tree
-            cond_tree = create_conditional_tree(tree, item, min_support)
-            if !isempty(cond_tree.header_table)
-                merge!(frequent_patterns, mine_frequent(cond_tree, new_suffix, min_support))
-            end
-        end
-    end
-    
-    return frequent_patterns
-end
-
 """
     fpgrowth(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
 
 Identify frequent itemsets in a transactional dataset `txns` with a minimum support: `min_support`.
 
 When an Int value is supplied to min_support, eclat will use absolute support (count) of transactions as minimum support.
-
 When a Float value is supplied, it will use relative support (percentage).
 """
 function fpgrowth(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
-
-    n_transactions = size(txns.matrix,1)
+    n_transactions = size(txns.matrix, 1)
     
     # Handle min_support as a float value
     if min_support isa Float64
@@ -167,21 +143,50 @@ function fpgrowth(txns::Transactions, min_support::Union{Int,Float64})::DataFram
     # Generate tree
     tree = make_FPTree(txns, min_support)
 
+    # Initialize results dictionary
+    Results = Dict{Vector{Int}, Int}()
+
+    function fpgrowth!(frequent_patterns::Dict{Vector{Int}, Int}, tree::FPTree, suffix::Vector{Int}, min_support::Int)
+        for (item, nodes) in tree.header_table
+            # Calculate support for the current item
+            support = sum(node.support for node in nodes)
+    
+            # Skip infrequent items
+            support < min_support && continue
+            
+            # Map the item back to its original index
+            original_item = tree.col_mapping[item]
+            new_suffix = vcat([original_item], suffix)
+            
+            # Add the new itemset to frequent patterns
+            frequent_patterns[new_suffix] = support
+
+            
+            # Create conditional FP-tree
+            cond_tree = create_conditional_tree(tree, item, min_support)
+            
+            # Skip if the conditional tree is empty
+            isempty(cond_tree.header_table) && continue
+            
+            # Recursively mine the conditional FP-tree
+            fpgrowth!(frequent_patterns, cond_tree, new_suffix, min_support)
+        end
+    end
+
     # Mine frequent sets
-    frequent_items = mine_frequent(tree, Int[], min_support)
+    fpgrowth!(Results,tree, Int[], min_support)
     
-    # Convert the dictionary to a DataFrame
-    df = DataFrame(
-        Itemset = [getnames(i,txns) for i in collect(keys(frequent_items))], 
-        Support = collect(values(frequent_items)) ./ n_transactions,
-        N = collect(values(frequent_items)),
-        Length = [length(i) for i in collect(keys(frequent_items))]
-        )
+    # Create the result DataFrame
+    result_df = DataFrame(
+        Itemset = [getnames(itemset, txns) for itemset in keys(Results)],
+        Support = [support / n_transactions for support in values(Results)],
+        N = collect(values(Results)),
+        Length = [length(itemset) for itemset in keys(Results)]
+    )
     
-    # Sort by support in descending order
-    sort!(df, :N, rev=true)
-    
-    return df
+    # Sort results by support in descending order
+    sort!(result_df, :N, rev=true)
+    return result_df
 end
 
 # FPClose
@@ -191,66 +196,15 @@ struct ClosedItemset
     support::Int
 end
 
-function mine_closed(tree::FPTree, suffix::Vector{Int}, min_support::Int)
-    closed_itemsets = Vector{ClosedItemset}()
-    header_items = collect(keys(tree.header_table))
-    
-    # Pre-allocate buffers
-    new_itemset = Vector{Int}(undef, length(suffix) + 1)
-    copyto!(new_itemset, 2, suffix, 1, length(suffix))
-    
-    for item in header_items
-        nodes = tree.header_table[item]
-        support = sum(node.support for node in nodes)
-        
-        if support >= min_support
-            new_itemset[1] = tree.col_mapping[item]
-            
-            # Create conditional FP-tree
-            cond_tree = create_conditional_tree(tree, item, min_support)
-            
-            if isempty(cond_tree.header_table)
-                # If there's no conditional tree, this itemset is closed
-                push!(closed_itemsets, ClosedItemset(copy(new_itemset), support))
-            else
-                sub_closed_itemsets = mine_closed(cond_tree, new_itemset, min_support)
-                
-                # Check if this itemset is closed
-                is_closed = !any(sci -> sci.support == support, sub_closed_itemsets)
-                
-                if is_closed
-                    push!(closed_itemsets, ClosedItemset(copy(new_itemset), support))
-                end
-                
-                # Merge sub_closed_itemsets
-                append!(closed_itemsets, sub_closed_itemsets)
-            end
-        end
-    end
-    
-    # Final pruning step
-    sort!(closed_itemsets, by = ci -> length(ci.itemset))
-    filter!(closed_itemsets) do ci1
-        !any(ci2 -> ci1 !== ci2 && 
-                    length(ci1.itemset) < length(ci2.itemset) && 
-                    ci1.support == ci2.support && 
-                    issubset(ci1.itemset, ci2.itemset),
-            closed_itemsets)
-    end
-    
-    return closed_itemsets
-end
-
 """
     fpclose(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
 
 Identify closed itemsets in a transactional dataset `txns` with a minimum support: `min_support`.
 
 When an Int value is supplied to min_support, eclat will use absolute support (count) of transactions as minimum support.
-
 When a Float value is supplied, it will use relative support (percentage).
 """
-function fpclose(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
+function fpclose(txns::Transactions, min_support::Union{Int,Float64})
     n_transactions = size(txns.matrix, 1)
     
     if min_support isa Float64
@@ -259,13 +213,57 @@ function fpclose(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
 
     tree = make_FPTree(txns, min_support)
     
-    closed_itemsets = mine_closed(tree, Int[], min_support)
+    # Initialize results dictionary
+    Results = Dict{Vector{Int}, Int}()
     
+    function fpclose!(closed_itemsets::Dict{Vector{Int}, Int}, tree::FPTree, suffix::Vector{Int}, min_support::Int)
+        # Process items in reverse order (largest to smallest support)
+        header_items = sort(collect(keys(tree.header_table)), 
+                            by=item -> sum(node.support for node in tree.header_table[item]), 
+                            rev=true)
+        
+        for item in header_items
+            nodes = tree.header_table[item]
+            support = sum(node.support for node in nodes)
+            
+            support < min_support && continue
+            
+            new_itemset = vcat(tree.col_mapping[item], suffix)
+            
+            # Check if this itemset is closed
+            is_closed = !any(closed_itemsets) do (other_itemset, other_support)
+                other_support == support &&
+                issubset(new_itemset, other_itemset)
+            end
+            
+            # If not closed, skip to creating conditional tree
+            if is_closed
+                
+                # Remove any subsets of this itemset with the same support
+                filter!(closed_itemsets) do (itemset, itemset_support)
+                    !(itemset_support == support && issubset(itemset, new_itemset))
+                end
+                
+                # Add the new closed itemset
+                closed_itemsets[new_itemset] = support
+            end
+            
+            # Create conditional FP-tree and continue mining
+            cond_tree = create_conditional_tree(tree, item, min_support)
+            isempty(cond_tree.header_table) && continue
+            
+            fpclose!(closed_itemsets, cond_tree, new_itemset, min_support)
+        end
+    end
+
+    # Start the mining process
+    fpclose!(Results, tree, Int[], min_support)
+
     df = DataFrame(
-        Itemset = [getnames(ci.itemset, txns) for ci in closed_itemsets], 
-        Support = [ci.support / n_transactions for ci in closed_itemsets],
-        N = [ci.support for ci in closed_itemsets],
-        Length = [length(ci.itemset) for ci in closed_itemsets]
+        Itemset = [getnames(itemset, txns) for itemset in keys(Results)], 
+        Support = [support / n_transactions for support in values(Results)],
+        N = collect(values(Results)),
+        Length = [length(itemset) for itemset in keys(Results)]
     )
     
     sort!(df, [:Length, :N], rev=[false, true])

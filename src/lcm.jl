@@ -1,5 +1,5 @@
 # lcm.jl
-# LCM algorithm for mining closed itemsets in Julia
+# LCM closed itemset mining in Julia
 #
 # Copyright (c) 2024 Jared Schwartz
 #
@@ -32,28 +32,28 @@ When an Int value is supplied to min_support, lcm will use absolute support (cou
 When a Float value is supplied, it will use relative support (percentage).
 """
 function LCM(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
-    n_transactions = size(txns.matrix, 1)
+    n_transactions, n_items = size(txns.matrix)
     
     # Convert relative support to absolute support if necessary
     if min_support isa Float64
         min_support = ceil(Int, min_support * n_transactions)
     end
 
-    # Calculate support for each item and find frequent items
-    item_supports = vec(sum(txns.matrix, dims=1))
-    frequent_items = findall(item_supports .>= min_support)
-    
-    # Sort frequent items in descending order of support
-    sorted_items = sort(frequent_items, by=i -> item_supports[i], rev=true)
+    # Create tidsets (transaction ID sets) for each item
+    tidsets = [BitSet(findall(txns.matrix[:,col])) for col in 1:n_items]
+    supports = vec(sum(txns.matrix, dims=1))
 
-   
-    dict_lock = ReentrantLock()
+    # Sort items by support in descending order, keeping only frequent items
+    sorted_items = sort(findall(s -> s >= min_support, supports), by=i -> supports[i], rev=true)
 
-    function lcm!(closed_itemsets::Dict{Vector{Int}, Int},current::Vector{Int}, tidset::BitVector)
+    # Dictionary to store closed itemsets and their supports
+    Results = Dict{Vector{Int}, Int}()
 
-        # Compute the closure of the current itemset using the tidset
-        closure = findall(vec(all(txns.matrix[tidset,:], dims=1)))
-        support = sum(tidset)
+    ThreadLock = ReentrantLock()
+
+    function lcm!(closed_itemsets::Dict{Vector{Int}, Int}, current::Vector{Int}, tidset::BitSet, dict_lock::ReentrantLock)
+        closure = findall(i -> length(intersect(tidset, tidsets[i])) == length(tidset), 1:n_items)
+        support = length(tidset)
         
         lock(dict_lock) do
             # If we've seen this closure with equal or higher support, skip it
@@ -62,9 +62,11 @@ function LCM(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
             end
 
             # Add Closure to Dict
-            closed_itemsets[closure] = support
+            if !isempty(closure)
+                closed_itemsets[closure] = support
+            end
         end
-
+        
         # Try extending the itemset with each frequent item
         for item in sorted_items
 
@@ -75,35 +77,29 @@ function LCM(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
             item <= (isempty(current) ? 0 : current[end]) && continue
             
             # Compute the new tidset for the extended itemset
-            new_tidset = tidset .& txns.matrix[:, item]
+            new_tidset = intersect(tidset, tidsets[item])
 
             # Skip if the new tidset doesn't meet minimum support
-            sum(new_tidset) < min_support && continue
+            length(new_tidset) < min_support && continue
             
-            # Recursively process the extended itemset
-            lcm!(closed_itemsets,vcat(current, item), new_tidset)
+            # Recurse with new tidset and itemset
+            lcm!(closed_itemsets, vcat(current, item), new_tidset, dict_lock)
         end
     end
 
-    # Dictionary to store closed itemsets and their supports
-    results = Dict{Vector{Int}, Int}()
-
-    # Start the LCM process with top-level equivalence class
+    # Start the LCM process with size-1 itemsets
     @sync begin
         for item in sorted_items
-            Threads.@spawn begin
-                tidset = BitVector(txns.matrix[:, item])
-                lcm!(results,[item], tidset)
-            end
+            Threads.@spawn lcm!(Results, [item], tidsets[item], ThreadLock)
         end
     end
 
     # Convert results to a DataFrame
     result = DataFrame(
-        Itemset = [getnames(itemset, txns) for itemset in keys(results)],
-        Support = [support / n_transactions for support in values(results)],
-        N = collect(values(results)),
-        Length = [length(itemset) for itemset in keys(results)]
+        Itemset = [getnames(itemset, txns) for itemset in keys(Results)],
+        Support = [support / n_transactions for support in values(Results)],
+        N = collect(values(Results)),
+        Length = [length(itemset) for itemset in keys(Results)]
     )
 
     # Sort results by support in descending order

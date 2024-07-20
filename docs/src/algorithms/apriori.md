@@ -32,10 +32,6 @@ The function returns a `DataFrame` containing the discovered association rules. 
 4. These candidate rules are then evaluated on whether they meet the minimum support citeria.
 5. Various metrics (support, confidence, coverage, lift) are calculated for each rule which meets the `min_support` criterion.
 
-## Performance Considerations
-
-This function uses Julia's multithreading capabilities to parallelize the generation and evaluation of candidate nodes, which can significantly improve performance on multi-core systems with Julia's native multithreading enabled.
-
 ## Usage Example
 
 ```julia

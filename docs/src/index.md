@@ -11,6 +11,6 @@ Key features of RuleMiner.jl include:
 
 ## Contents
 ```@contents
-Pages = ["transactions.md", "algorithms/apriori.md", "algorithms/eclat.md"]
+Pages = ["transactions.md", "algorithms/apriori.md", "algorithms/eclat.md","algorithms/fpgrowth.md","algorithms/charm.md","algorithms/fpclose.md","algorithms/lcm.md","algorithms/carpenter.md","algorithms/levelwise.md"]
 Depth = 2
 ```

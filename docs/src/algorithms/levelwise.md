@@ -1,6 +1,6 @@
-# Levelwise
+# LevelWise
 
-The `levelwise` function implements a levelwise algorithm for mining closed itemsets proposed by Pasquier et al in 1999. This algorithm, generates all subsets of the closed itemsets, derives their supports, and then returns the results. This particular implementation is designed to take a result datafrom from the various closed itemset mining algorithms in this package as its input.
+The `levelwise` function implements the levelwise algorithm for mining closed itemsets proposed by Pasquier et al in 1999. This algorithm generates all subsets of the closed itemsets, derives their supports, and then returns the results. This particular implementation is designed to take a result datafrom from the various closed itemset mining algorithms in this package as its input.
 
 
 ```@docs
@@ -22,16 +22,20 @@ A DataFrame object with three columns:
 - `N`: Absolute support count of the itemset
 - `Length`: Number of items in the itemset
 
-Algorithm Overview
+## Algorithm Overview
 
 1. The function starts by creating candidates from all subcombinations of the closed itemsets
 2. It computes their supports by finding the smallest closed itemset that is a superset of the candiate
 3. The algorithm loops thorugh, building larger combinations until there are no combinations left
 
+## Usage Example
 ```julia
 # Load transactions
 txns = load_transactions("transactions.txt", ' ')
 
 # Find frequent itemsets with minimum support of 5%
-result = fpclose(txns, 0.05)
+closed_sets = fpclose(txns, 0.05)
+
+# Recover all frequent itemsets from the result
+levelwise(closed_sets,0.05)
 ```
