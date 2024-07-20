@@ -246,8 +246,9 @@ end
 end
 
 @testset "levelwise.jl" begin
-    closed_sets = LCM(data,1)
-    sets = levelwise(closed_sets,freq_abs_sup)
+    closed_sets = LCM(data,2)
+    sets = levelwise(closed_sets,2)
+    subset!(sets, :N => (x -> x .>= freq_abs_sup))
     setsorter!(sets)
     @test sets.Itemset == freq_items
     @test sets.N == freq_N

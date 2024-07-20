@@ -54,11 +54,9 @@ function levelwise(df::DataFrame, min_n::Int)::DataFrame
     # Add all closed itemsets to frequent itemsets
     merge!(frequent_itemsets, closed_itemsets)
 
-    # Initialize Candidate Set
-    candidates = Set{Set{eltype(closed_df.Itemset[1])}}()
-
-    max_k = maximum(closed_df.Length)
-    for k in 1:max_k
+    for k in 1:maximum(closed_df.Length)
+         # Initialize Candidate Set
+        candidates = Set{Set{eltype(closed_df.Itemset[1])}}()
         # Generate candidates
         for closed_itemset in closed_df.Itemset
             for subset in generate_subsets(closed_itemset, k)
@@ -67,20 +65,23 @@ function levelwise(df::DataFrame, min_n::Int)::DataFrame
                 push!(candidates, subset)
             end
         end
-    end
 
-    # Calculate support and check frequency
-    for candidate in collect(candidates)
+        # Calculate support and check frequency
+        for candidate in collect(candidates)
         
-        smallest_closed = find_smallest_closed(candidate, closed_df)
-        
-        isnothing(smallest_closed) && continue
-
-        support = closed_itemsets[Set(smallest_closed)]
-        
-        support < min_n && continue
+            smallest_closed = find_smallest_closed(candidate, closed_df)
             
-        frequent_itemsets[candidate] = support
+            isnothing(smallest_closed) && continue
+    
+            support = closed_itemsets[Set(smallest_closed)]
+            
+            support < min_n && continue
+                
+            frequent_itemsets[candidate] = support
+        end
+
+        # If no more candidates, break out of loop
+        isempty(candidates) && break
     end
 
     # Convert the result to a DataFrame
