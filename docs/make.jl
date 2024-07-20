@@ -18,7 +18,7 @@ makedocs(
             "FPClose" => "algorithms/fpclose.md",
             "CHARM" => "algorithms/charm.md",
             "LCM" => "algorithms/lcm.md",
-            "Carpenter" => "algorithms/carpenter.md"
+            "Carpenter" => "algorithms/carpenter.md",
             "Levelwise" => "algorithms/levelwise.md"
         ],
     ],

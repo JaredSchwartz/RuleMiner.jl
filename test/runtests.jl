@@ -246,7 +246,7 @@ end
 end
 
 @testset "levelwise.jl" begin
-    closed_sets = LCM(data,freq_abs_sup)
+    closed_sets = LCM(data,1)
     sets = levelwise(closed_sets,freq_abs_sup)
     setsorter!(sets)
     @test sets.Itemset == freq_items
