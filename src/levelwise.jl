@@ -70,7 +70,7 @@ function levelwise(df::DataFrame, min_n::Int)::DataFrame
     end
 
     # Calculate support and check frequency
-    for candidate in candidates
+    for candidate in collect(candidates)
         
         smallest_closed = find_smallest_closed(candidate, closed_df)
         
