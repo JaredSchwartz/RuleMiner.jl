@@ -20,7 +20,7 @@ A DataFrame object with four columns:
 - `N`: Absolute support count of the itemset
 - `Length`: Number of items in the itemset
 
-Algorithm Overview
+## Algorithm Overview
 
 1. Check if the current itemset has been discovered before (pruning 3)
 2. Calculate the support of the current itemset
@@ -30,6 +30,7 @@ Algorithm Overview
 6. Add closed frequent itemsets to the results
 7. Recursively enumerate larger itemsets
 
+## Usage Example
 ```julia
 # Load transactions
 txns = load_transactions("transactions.txt", ' ')

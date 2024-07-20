@@ -20,7 +20,7 @@ A DataFrame object with four columns:
 - `N`: Absolute support count of the itemset
 - `Length`: Number of items in the itemset
 
-Algorithm Overview
+## Algorithm Overview
 
 1. The function starts by constructing an FP-tree from the transaction dataset.
 2. It then recursively mines the FP-tree to find all frequent itemsets.
@@ -28,6 +28,7 @@ Algorithm Overview
 4. It traverses the tree in a bottom-up manner, combining frequent items to generate longer frequent itemsets.
 5. The process continues until all frequent itemsets are discovered.
 
+## Usage Example
 ```julia
 # Load transactions
 txns = load_transactions("transactions.txt", ' ')

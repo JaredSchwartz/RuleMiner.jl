@@ -26,6 +26,7 @@ The package currently has support for these algorithms:
 - CHARM[^5]
 - LCM[^6]
 - CARPENTER[^7]
+- LevelWise[^8] (for recovering frequent itemsets)
 
 ## Installation
 ```
@@ -118,7 +119,7 @@ See [this post](https://julialang.org/blog/2019/07/multithreading/) for more inf
 > Multithreading can be configured for the VScode integrated terminal by setting the `julia.NumThreads` parameter in VScode settings.
 
 ## Future Work
-RuleMiner 0.3.0 is planned to support closed itemset mining in addition to frequent itemset mining.
+RuleMiner 0.4.0 is planned to support maximal itemset mining.
 
 ## References
 [^1]: Agrawal, Rakesh, and Ramakrishnan Srikant. “Fast Algorithms for Mining Association Rules in Large Databases.” In Proceedings of the 20th International Conference on Very Large Data Bases, 487–99. VLDB ’94. San Francisco, CA, USA: Morgan Kaufmann Publishers Inc., 1994.
@@ -134,3 +135,5 @@ RuleMiner 0.3.0 is planned to support closed itemset mining in addition to frequ
 [^6]: Uno, Takeaki, Tatsuya Asai, Yuzo Uchida, and Hiroki Arimura. “An Efficient Algorithm for Enumerating Closed Patterns in Transaction Databases.” In Discovery Science, edited by Einoshin Suzuki and Setsuo Arikawa, 16–31. Berlin, Heidelberg: Springer, 2004. https://doi.org/10.1007/978-3-540-30214-8_2.
 
 [^7]: Pan, Feng, Gao Cong, Anthony K. H. Tung, Jiong Yang, and Mohammed J. Zaki. “Carpenter: Finding Closed Patterns in Long Biological Datasets.” In Proceedings of the Ninth ACM SIGKDD International Conference on Knowledge Discovery and Data Mining, 637–42. KDD ’03. New York, NY, USA: Association for Computing Machinery, 2003. https://doi.org/10.1145/956750.956832.
+
+[^8]: Pasquier, Nicolas, Yves Bastide, Rafik Taouil, and Lotfi Lakhal. “Efficient Mining of Association Rules Using Closed Itemset Lattices.” Information Systems 24, no. 1 (March 1, 1999): 25–46. https://doi.org/10.1016/S0306-4379(99)00003-4.

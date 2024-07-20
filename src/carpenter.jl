@@ -1,5 +1,5 @@
 # carpenter.jl
-# Carpenter algorithm for mining closed itemsets in Julia
+# Carpenter closed itemset mining in Julia
 #
 # Copyright (c) 2024 Jared Schwartz
 #
@@ -29,7 +29,6 @@ export carpenter
 Identify closed frequent itemsets in a transactional dataset `txns` with a minimum support: `min_support`.
 
 When an Int value is supplied to min_support, carpenter will use absolute support (count) of transactions as minimum support.
-
 When a Float value is supplied, it will use relative support (percentage).
 """
 function carpenter(txns::Transactions, min_support::Union{Int,Float64})
@@ -39,16 +38,27 @@ function carpenter(txns::Transactions, min_support::Union{Int,Float64})
         min_support = ceil(Int, min_support * n_transactions)
     end
     
-    function carpenter!(closed_itemsets::Dict{Vector{Int}, Int}, X::Vector{Int}, R::Vector{Int},Lock::ReentrantLock)
-       
+    # Create tidsets (transaction ID sets) for each item
+    tidsets = [BitSet(findall(txns.matrix[:,col])) for col in 1:n_items]
+    supports = vec(sum(txns.matrix, dims=1))
+
+    # Create vectors of all items and all frequent items for mining
+    allitems = collect(1:n_items)
+    frequent_items = findall(supports .>= min_support)
+
+    # Initialize results dictionary and threading lock
+    Results = Dict{Vector{Int}, Int}()
+    ThreadLock = ReentrantLock()
+    
+    function carpenter!(closed_itemsets::Dict{Vector{Int}, Int}, X::Vector{Int}, R::Vector{Int}, Lock::ReentrantLock)
         # Pruning 3: Early return if itemset is already present in the output
-        if haskey(closed_itemsets,X)
+        if haskey(closed_itemsets, X)
             return
         end
         
         # Find transactions with the itemset and calculate support
-        rows = BitVector(vec(all(txns.matrix[:, X], dims=2)))
-        support_X = sum(rows)
+        tidset_X = length(X) == 1 ? tidsets[X[1]] : intersect(tidsets[X]...)
+        support_X = length(tidset_X)
         
         # Pruning 1: Early return if the itemset is not frequent
         if support_X < min_support
@@ -56,49 +66,42 @@ function carpenter(txns::Transactions, min_support::Union{Int,Float64})
         end
     
         # Pruning 2: Find items that can be added without changing support
-        mask = vec(sum(txns.matrix[rows, R], dims=1)) .== support_X
-        Y = R[mask]
+        Y = filter(i -> length(intersect(tidset_X, tidsets[i])) == support_X, R)
 
         # Add X to itemsets if it's closed (Y is empty)
         if isempty(Y) 
             lock(Lock) do
-            closed_itemsets[X] = support_X
+                closed_itemsets[X] = support_X
             end
         # If Y is not empty, add the itemset's closure (X ∪ Y)
         else 
             lock(Lock) do
-            closed_itemsets[sort(vcat(X, Y))] = support_X
+                closed_itemsets[sort(vcat(X, Y))] = support_X
             end
         end
         
         # Recursive enumeration
         for i in setdiff(R, Y)
-            carpenter!(closed_itemsets, sort(vcat(X, i)), setdiff(R, [i]),Lock)
+            carpenter!(closed_itemsets, sort(vcat(X, i)), setdiff(R, [i]), Lock)
         end
     end
 
-    allitems = collect(1:n_items)
-    frequent_items = findall(vec(sum(txns.matrix, dims=1)) .>= min_support)
-
-    DictLock = ReentrantLock()
-    itemsets = Dict{Vector{Int}, Int}()
-
+    # Parallel Processing of initial itemsets
     @sync begin
         for item in frequent_items
-            Threads.@spawn begin
-                carpenter!(itemsets, [item], setdiff(allitems, [item]), DictLock)
-            end
+            Threads.@spawn carpenter!(Results, [item], setdiff(allitems, [item]), ThreadLock)
         end
     end
     
-    df = DataFrame(
-        Itemset = [getnames(pattern, txns) for pattern in keys(itemsets)],
-        Support = [count / n_transactions for count in values(itemsets)],
-        N = collect(values(itemsets)),
-        Length = [length(pattern) for pattern in keys(itemsets)]
+    # Create the result DataFrame
+    result_df = DataFrame(
+        Itemset = [getnames(itemset, txns) for itemset in keys(Results)],
+        Support = [support / n_transactions for support in values(Results)],
+        N = collect(values(Results)),
+        Length = [length(itemset) for itemset in keys(Results)]
     )
     
-    sort!(df, :N, rev=true)
-    
-    return df
+    # Sort results by support in descending order
+    sort!(result_df, :N, rev=true)
+    return result_df
 end

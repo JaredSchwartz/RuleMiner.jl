@@ -1,5 +1,5 @@
 # eclat.jl
-# ECLAT set mining in Julia
+# ECLAT frequent itemset mining in Julia
 #
 # Copyright (c) 2024 Jared Schwartz
 #
@@ -23,12 +23,6 @@
 
 export eclat
 
-struct Itemset
-    items::Vector{Int}
-    support::Int
-    len::Int
-end
-
 """
     eclat(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
 
@@ -36,12 +30,10 @@ end
 Identify frequent itemsets in a transactional dataset `txns` with a minimum support: `min_support`.
 
 When an Int value is supplied to min_support, eclat will use absolute support (count) of transactions as minimum support.
-
 When a Float value is supplied, it will use relative support (percentage).
 """
 function eclat(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
-
-    n_transactions = size(txns.matrix,1)
+    n_transactions = size(txns.matrix, 1)
     
     # Handle min_support as a float value
     if min_support isa Float64
@@ -55,21 +47,24 @@ function eclat(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
     frequent_items = [item for item in item_index if item_supports[item] >= min_support]
     sorted_items = sort(frequent_items, by= x -> item_supports[x])
 
+    # Initialize results dictionary and threading lock
+    Results = Dict{Vector{Int}, Int}()
+    ThreadLock = ReentrantLock()
 
-    result = Vector{Itemset}([Itemset([item], item_supports[item], 1) for item in sorted_items])
-    result_lock = ReentrantLock()
+    # Add single-item frequent itemsets to results
+    for item in sorted_items
+        Results[[item]] = item_supports[item]
+    end
 
-    # Define recrusive eclat function and run it on the data
+    # Define recursive eclat function and run it on the data
     function eclat!(lineage::Vector{Int}, items::Vector{Int}, trans::SparseMatrixCSC{Bool, Int}, min_support::Int)
-        for i in eachindex(items)
-            item = items[i]
+        for (i, item) in enumerate(items)
             new_lineage = vcat(lineage, item)
             support = sum(all(trans[:, new_lineage], dims=2))
     
             if support >= min_support
-                set = Itemset(new_lineage, support, length(new_lineage))
-                lock(result_lock) do
-                    push!(result, set)
+                lock(ThreadLock) do
+                    Results[new_lineage] = support
                 end
                 new_items = items[i+1:end]
                 if !isempty(new_items)
@@ -80,18 +75,20 @@ function eclat(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
     end
 
     @sync begin
-        for i in eachindex(sorted_items)
-            Threads.@spawn begin
-                eclat!([sorted_items[i]], sorted_items[i+1:end], txns.matrix, min_support)
-            end
+        for (i, item) in enumerate(sorted_items)
+            Threads.@spawn eclat!([item], sorted_items[i+1:end], txns.matrix, min_support)
         end
     end
     
-    result = DataFrame(
-        Itemset = [getnames(x.items,txns) for x in result],
-        Support = [x.support/n_transactions for x in result],
-        N = [x.support for x in result],
-        Length = [x.len for x in result]
+    # Create the result DataFrame
+    result_df = DataFrame(
+        Itemset = [getnames(itemset, txns) for itemset in keys(Results)],
+        Support = [support / n_transactions for support in values(Results)],
+        N = collect(values(Results)),
+        Length = [length(itemset) for itemset in keys(Results)]
     )
-    return result
+    
+    # Sort results by support in descending order
+    sort!(result_df, :N, rev=true)
+    return result_df
 end
