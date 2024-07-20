@@ -95,12 +95,16 @@ data = load_transactions(joinpath(@__DIR__,"files/data.txt"),',')
 end
 
 # Define Frequent Itemset results at support of 3/0.3
+freq_abs_sup = 3
+freq_perc_sup = 0.3
 freq_items = [["beer"], ["bread"], ["cheese"], ["eggs"], ["ham"], ["milk"], ["eggs", "milk"]]
 freq_supports = [0.3333333333333333, 0.3333333333333333, 0.3333333333333333, 0.5555555555555556, 0.3333333333333333, 0.5555555555555556, 0.4444444444444444]
 freq_N = [3, 3, 3, 5, 3, 5, 4]
 freq_length = [1, 1, 1, 1, 1, 1, 2]
 
 # Define Closed Itemset results at support of 2/0.2
+closed_abs_sup = 2
+closed_perc_sup = 0.2
 closed_items = [["beer"], ["bread"], ["cheese"], ["eggs"], ["ham"], ["ketchup"], ["milk"], ["bacon", "eggs"], ["beer", "hamburger"], ["beer", "milk"], ["bread", "ham"], ["cheese", "ham"], ["eggs", "milk"], ["eggs", "milk", "sugar"]]
 closed_supports = [0.3333333333333333, 0.3333333333333333, 0.3333333333333333, 0.5555555555555556, 0.3333333333333333, 0.2222222222222222, 0.5555555555555556, 0.2222222222222222, 0.2222222222222222, 0.2222222222222222, 0.2222222222222222, 0.2222222222222222, 0.4444444444444444, 0.2222222222222222]
 closed_N = [3, 3, 3, 5, 3, 2, 5, 2, 2, 2, 2, 2, 4, 2]
@@ -117,7 +121,7 @@ end
 @testset "eclat.jl" begin
 
     @testset "percentage support" begin
-        sets = eclat(data,0.3)
+        sets = eclat(data,freq_perc_sup)
         setsorter!(sets)
         @test sets.Itemset == freq_items
         @test sets.Support ≈ freq_supports
@@ -126,7 +130,7 @@ end
     end
     
     @testset "asbolute support" begin
-        sets = eclat(data,3)
+        sets = eclat(data,freq_abs_sup)
         setsorter!(sets)
         @test sets.Itemset == freq_items
         @test sets.Support ≈ freq_supports
@@ -139,7 +143,7 @@ end
 
     @testset "fpgrowth" begin
         @testset "percentage support" begin
-            sets = fpgrowth(data,0.3)
+            sets = fpgrowth(data,freq_perc_sup)
             setsorter!(sets)
             @test sets.Itemset == freq_items
             @test sets.Support ≈ freq_supports
@@ -148,7 +152,7 @@ end
         end
         
         @testset "asbolute support" begin
-            sets = fpgrowth(data,3)
+            sets = fpgrowth(data,freq_abs_sup)
             setsorter!(sets)
             @test sets.Itemset == freq_items
             @test sets.Support ≈ freq_supports
@@ -159,7 +163,7 @@ end
 
     @testset "fpclose" begin
         @testset "percentage support" begin
-            sets = fpclose(data,0.2)
+            sets = fpclose(data,closed_perc_sup)
             setsorter!(sets)
             @test sets.Itemset == closed_items
             @test sets.Support ≈ closed_supports
@@ -181,7 +185,7 @@ end
 @testset "charm.jl" begin
         
     @testset "percentage support" begin
-        sets = charm(data,0.2)
+        sets = charm(data,closed_perc_sup)
         setsorter!(sets)
         @test sets.Itemset == closed_items
         @test sets.Support ≈ closed_supports
@@ -190,7 +194,7 @@ end
     end
     
     @testset "asbolute support" begin
-        sets = charm(data,2)
+        sets = charm(data,closed_abs_sup)
         setsorter!(sets)
         @test sets.Itemset == closed_items
         @test sets.Support ≈ closed_supports
@@ -202,7 +206,7 @@ end
 @testset "carpenter.jl" begin
         
     @testset "percentage support" begin
-        sets = carpenter(data,0.2)
+        sets = carpenter(data,closed_perc_sup)
         setsorter!(sets)
         @test sets.Itemset == closed_items
         @test sets.Support ≈ closed_supports
@@ -211,7 +215,7 @@ end
     end
     
     @testset "asbolute support" begin
-        sets = carpenter(data,2)
+        sets = carpenter(data,closed_abs_sup)
         setsorter!(sets)
         @test sets.Itemset == closed_items
         @test sets.Support ≈ closed_supports
@@ -223,7 +227,7 @@ end
 @testset "lcm.jl" begin
         
     @testset "percentage support" begin
-        sets = LCM(data,0.2)
+        sets = LCM(data,closed_perc_sup)
         setsorter!(sets)
         @test sets.Itemset == closed_items
         @test sets.Support ≈ closed_supports
@@ -232,11 +236,20 @@ end
     end
     
     @testset "asbolute support" begin
-        sets = LCM(data,2)
+        sets = LCM(data,closed_abs_sup)
         setsorter!(sets)
         @test sets.Itemset == closed_items
         @test sets.Support ≈ closed_supports
         @test sets.N == closed_N
         @test sets.Length == closed_length
     end
+end
+
+@testset "levelwise.jl" begin
+    closed_sets = LCM(data,freq_abs_sup)
+    sets = levelwise(closed_sets,freq_abs_sup)
+    setsorter!(sets)
+    @test sets.Itemset == freq_items
+    @test sets.N == freq_N
+    @test sets.Length == freq_length
 end

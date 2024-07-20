@@ -23,13 +23,16 @@
 
 module RuleMiner
 
-using DataFrames, LuxurySparse, Mmap, Base.Threads, SparseArrays
+using DataFrames, LuxurySparse, Mmap, Base.Threads, SparseArrays, Combinatorics
 
 include("transactions.jl")
+# Frequent Itemset Mining
 include("apriori.jl")
 include("eclat.jl")
 include("fpgrowth.jl")
+# Closed Itemset Mining
 include("charm.jl")
 include("carpenter.jl")
 include("lcm.jl")
+include("levelwise.jl")
 end
