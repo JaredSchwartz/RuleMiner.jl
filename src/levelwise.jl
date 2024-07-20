@@ -31,7 +31,7 @@ Recover frequent itemsets from a dataframe `df` of closed itemsets with minimum 
 function levelwise(df::DataFrame, min_n::Int)::DataFrame
     # Helper function to generate all k-subsets of an itemset
     function generate_subsets(itemset, k)
-        return [collect(c) for c in combinations(itemset, k)]
+        return [Set(collect(c)) for c in combinations(itemset, k)]
     end
 
     # Helper function to find the smallest closed itemset containing a given itemset
@@ -42,52 +42,50 @@ function levelwise(df::DataFrame, min_n::Int)::DataFrame
 
     # Subset the input datafame to only closed sets above minimum support
     closed_df = subset(df, :N => (x -> x .>= min_n))
-
+    
     # Sort the input DataFrame by Length (ascending) for optimization
     sort!(closed_df, :Length)
 
     # Extract closed itemsets and their supports
     closed_itemsets = Dict(Set(row.Itemset) => row.N for row in eachrow(closed_df))
 
-    frequent_itemsets = Dict{Vector{eltype(closed_df.Itemset[1])}, Int}()
+    frequent_itemsets = Dict{Set{eltype(closed_df.Itemset[1])}, Int}()
 
     # Add all closed itemsets to frequent itemsets
-    for row in eachrow(closed_df)
-        frequent_itemsets[collect(row.Itemset)] = row.N
-    end
+    merge!(frequent_itemsets, closed_itemsets)
+
+    # Initialize Candidate Set
+    candidates = Set{Set{eltype(closed_df.Itemset[1])}}()
 
     max_k = maximum(closed_df.Length)
     for k in 1:max_k
-        candidates = Set{Vector{eltype(closed_df.Itemset[1])}}()
-
         # Generate candidates
         for closed_itemset in closed_df.Itemset
             for subset in generate_subsets(closed_itemset, k)
-
                 # Skip if the candidate has already been added
                 haskey(frequent_itemsets, subset) && continue    
-                
                 push!(candidates, subset)
             end
         end
+    end
 
-        # Calculate support and check frequency
-        for candidate in candidates
-            smallest_closed = find_smallest_closed(candidate, closed_df)
-            
-            isnothing(smallest_closed) && continue
+    # Calculate support and check frequency
+    for candidate in candidates
+        
+        smallest_closed = find_smallest_closed(candidate, closed_df)
+        
+        isnothing(smallest_closed) && continue
 
-            support = closed_itemsets[Set(smallest_closed)]
+        support = closed_itemsets[Set(smallest_closed)]
+        
+        support < min_n && continue
             
-            support < min_n && continue
-                
-            frequent_itemsets[candidate] = support
-        end
+        frequent_itemsets[candidate] = support
     end
 
     # Convert the result to a DataFrame
     result_df = DataFrame(
-        Itemset = collect(keys(frequent_itemsets)), 
+        Itemset = collect.(collect(keys(frequent_itemsets))), 
         N = collect(values(frequent_itemsets)),
         Length = length.(collect(keys(frequent_itemsets)))
     )
