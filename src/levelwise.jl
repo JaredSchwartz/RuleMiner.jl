@@ -40,25 +40,28 @@ function levelwise(df::DataFrame, min_n::Int)::DataFrame
         isempty(containing) ? nothing : containing[argmin(containing.Length), :Itemset]
     end
 
+    # Subset the input datafame to only closed sets above minimum support
+    closed_df = subset(df, :N => (x -> x .>= min_n))
+
     # Sort the input DataFrame by Length (ascending) for optimization
-    sort!(df, :Length)
+    sort!(closed_df, :Length)
 
     # Extract closed itemsets and their supports
-    closed_itemsets = Dict(Set(row.Itemset) => row.N for row in eachrow(df))
+    closed_itemsets = Dict(Set(row.Itemset) => row.N for row in eachrow(closed_df))
 
-    frequent_itemsets = Dict{Vector{eltype(df.Itemset[1])}, Int}()
+    frequent_itemsets = Dict{Vector{eltype(closed_df.Itemset[1])}, Int}()
 
     # Add all closed itemsets to frequent itemsets
-    for row in eachrow(df)
+    for row in eachrow(closed_df)
         frequent_itemsets[collect(row.Itemset)] = row.N
     end
 
-    k = 1
-    while true
-        candidates = Set{Vector{eltype(df.Itemset[1])}}()
+    max_k = maximum(closed_df.Length)
+    for k in 1:max_k
+        candidates = Set{Vector{eltype(closed_df.Itemset[1])}}()
 
         # Generate candidates
-        for closed_itemset in df.Itemset
+        for closed_itemset in closed_df.Itemset
             for subset in generate_subsets(closed_itemset, k)
 
                 # Skip if the candidate has already been added
@@ -69,11 +72,13 @@ function levelwise(df::DataFrame, min_n::Int)::DataFrame
         end
 
         # If no new candidates, terminate
-        isempty(candidates) && break
+        if isempty(candidates)
+            break
+        end
 
         # Calculate support and check frequency
         for candidate in candidates
-            smallest_closed = find_smallest_closed(candidate, df)
+            smallest_closed = find_smallest_closed(candidate, closed_df)
             
             isnothing(smallest_closed) && continue
 
@@ -83,9 +88,6 @@ function levelwise(df::DataFrame, min_n::Int)::DataFrame
                 
             frequent_itemsets[candidate] = support
         end
-
-        # Increment the level
-        k += 1
     end
 
     # Convert the result to a DataFrame
