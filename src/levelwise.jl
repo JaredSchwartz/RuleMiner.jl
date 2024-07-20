@@ -71,11 +71,6 @@ function levelwise(df::DataFrame, min_n::Int)::DataFrame
             end
         end
 
-        # If no new candidates, terminate
-        if isempty(candidates)
-            break
-        end
-
         # Calculate support and check frequency
         for candidate in candidates
             smallest_closed = find_smallest_closed(candidate, closed_df)
@@ -88,6 +83,9 @@ function levelwise(df::DataFrame, min_n::Int)::DataFrame
                 
             frequent_itemsets[candidate] = support
         end
+
+        # If no new candidates, terminate
+        isempty(candidates) && break
     end
 
     # Convert the result to a DataFrame
