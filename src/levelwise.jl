@@ -83,9 +83,6 @@ function levelwise(df::DataFrame, min_n::Int)::DataFrame
                 
             frequent_itemsets[candidate] = support
         end
-
-        # If no new candidates, terminate
-        isempty(candidates) && break
     end
 
     # Convert the result to a DataFrame
