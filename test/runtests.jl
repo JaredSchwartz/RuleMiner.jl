@@ -81,7 +81,7 @@ data = load_transactions(joinpath(@__DIR__,"files/data.txt"),',')
     end
 
     @testset "absolute support" begin
-        rules = apriori(data,2,5)
+        rules = apriori(data,3,5)
         sorted = sort(rules,[:Support,:RHS])
         @test sorted.LHS == [String[], String[], String[], String[], ["milk"], ["eggs"], String[], String[]]
         @test sorted.RHS == ["beer", "bread", "cheese", "ham", "eggs", "milk", "eggs", "milk"]

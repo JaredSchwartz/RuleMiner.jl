@@ -24,14 +24,10 @@
 export apriori
 
 struct Arule
-    lhs::Vector{String} # Vector containing the string name(s) of the left-hand side of the rule
-    rhs::String # String name of the right-hand side of the rule
-    supp::Float64 # Support value
-    conf::Float64 # Confidence Value
-    cov::Float64 # Coverage Value
-    lift::Float64 # Lift Value
+    lhs::Vector{Int} # Vector containing the integer indices of the left-hand side of the rule
+    rhs::Int # Integer index of the right-hand side of the rule
     n::Int # Count (n) value
-    len::Int # Length of the rule
+    cov::Int # Coverage (parent support) value
     lin::Vector{Int} # Lineage of the rule (LHS union RHS)
     cand::Vector{Int} # Candidate children rules
 end
@@ -49,63 +45,39 @@ When a Float value is supplied, it will use relative support (percentage).
 """
 function apriori(txns::Transactions, min_support::Union{Int,Float64}, max_length::Int)::DataFrame
     
-    # Function to find siblings
-    function siblings(items::AbstractArray{Int},value::Int,lineage::Vector{Int})
-        return setdiff(items, vcat(lineage,value))
+    function siblings(items::AbstractArray{Int}, value::Int, lineage::Vector{Int})
+        return setdiff(items, vcat(lineage, value))
     end
 
-    # Function to hash the rules to check uniqueness
     function rulehash(s::Arule)
         return hash(vcat([getfield(s, f) for f in fieldnames(typeof(s))]))
     end
 
-    # Use multiple dispatch to handle item filtering based on count support or percentage support
-    function filtersupport(num::AbstractArray{Int},support::Vector{Float64},min_support::Int)
-        return findall(x -> x > min_support, num)
-    end
-    function filtersupport(num::AbstractArray{Int},support::Vector{Float64},min_support::Float64)
-        return findall(x -> x > min_support, support)
-    end
-
-    # Find Base nodes
     baselen = size(txns.matrix, 1)
     basenum = vec(sum(txns.matrix, dims=1))
-    basesupport = basenum ./ baselen
+    min_support = min_support isa Float64 ? ceil(Int, min_support * baselen) : min_support
 
-    items = filtersupport(basenum,basesupport,min_support)
-    subtxns = txns.matrix[:,items]
+    items = findall(basenum .>= min_support)
+    subtxns = txns.matrix[:, items]
 
     rules = Vector{Arule}()
 
     for (index, item) in enumerate(items)
         rule = Arule(
-                Vector{String}(), # LHS
-                txns.colkeys[item], # RHS
-                basesupport[item], # Support
-                basesupport[item], # Confidence (same as support on base nodes)
-                1.0, # Coverage (1 on base nodes)
-                1.0, # Lift (1 on base nodes)
-                basenum[item], # N
-                1, # Length
-                Vector([index]), # Lineage
-                siblings(1:length(items),index,Vector{Int}()) # Candidate Nodes
-            )
-        push!(rules,rule)
+            Int[], # LHS
+            index, # RHS
+            basenum[item], # N
+            baselen, # Coverage (baselen for base nodes)
+            [index], # Lineage
+            siblings(1:length(items), index, Int[]) # Candidate Nodes
+        )
+        push!(rules, rule)
     end
 
-    # Find Child nodes
     if max_length > 1
         parents = rules
-        for level in 2:max_length
-
-            # Create output array to prevent thread race conditions
-            levelrules = Vector{Vector{Arule}}()
-            for i in 1:Threads.nthreads()
-                push!(levelrules,Arule[])
-            end
-            
-            # Use multitheading to find child nodes
-
+        for k in 2:max_length
+            levelrules = [Arule[] for _ in 1:Threads.nthreads()]
             @sync begin
                 for parent in parents
                     Threads.@spawn begin
@@ -113,50 +85,48 @@ function apriori(txns::Transactions, min_support::Union{Int,Float64}, max_length
                         subtrans = subtxns[mask, :]
 
                         subnum = vec(sum(subtrans, dims=1))
-                        subsupport = subnum ./ baselen
-
-                        subitems = filtersupport(subnum,subsupport,min_support)
+                        subitems = findall(subnum .>= min_support)
                         subitems = filter(x -> (x in parent.cand), subitems)
+                        
                         for i in subitems
                             subrule = Arule(
-                                getnames([items[i] for i in parent.lin],txns), # LHS
-                                txns.colkeys[items[i]], # RHS
-                                subsupport[i], # Support
-                                subsupport[i] / parent.supp, # Confidence
-                                parent.supp, # Coverage
-                                (subsupport[i] / parent.supp) / basesupport[i], # Lift
+                                parent.lin, # LHS
+                                i, # RHS
                                 subnum[i], # N
-                                level, # length
+                                parent.n, # Coverage (parent support)
                                 sort(vcat(parent.lin, i)), # lineage
                                 siblings(subitems, i, parent.lin) # Potential Next Nodes
                             )
-                            push!(levelrules[Threads.threadid()],subrule)
+                            push!(levelrules[Threads.threadid()], subrule)
                         end
                     end
                 end
             end
             
-            # Ensure rules are unique
-            unique_dict = Dict{UInt64, RuleMiner.Arule}()
+            unique_dict = Dict{UInt64, Arule}()
             for rule in vcat(levelrules...)
                 rule_hash = rulehash(rule)
                 unique_dict[rule_hash] = rule
             end
             unique_rules = collect(values(unique_dict))
 
-            append!(rules,unique_rules)
+            append!(rules, unique_rules)
             parents = unique_rules
         end
     end
-    rules = DataFrame(
-            LHS = [rule.lhs for rule in rules],
-            RHS = [rule.rhs for rule in rules],
-            Support = [rule.supp for rule in rules],
-            Confidence = [rule.conf for rule in rules],
-            Coverage = [rule.cov for rule in rules],
-            Lift = [rule.lift for rule in rules],
-            N = [rule.n for rule in rules],
-            Length = [rule.len for rule in rules]
-        )
-    return rules
+
+    # Convert rules to DataFrame and calculate metrics
+    df = DataFrame(
+        LHS = [getnames([items[i] for i in rule.lhs], txns) for rule in rules],
+        RHS = [txns.colkeys[items[rule.rhs]] for rule in rules],
+        Support = [rule.n / baselen for rule in rules],
+        Confidence = [rule.n / rule.cov for rule in rules],
+        Coverage = [rule.cov / baselen for rule in rules],
+        Lift = [(rule.n / baselen) / ((rule.cov / baselen) * (basenum[items[rule.rhs]] / baselen)) for rule in rules],
+        N = [rule.n for rule in rules],
+        Length = [length(rule.lin) for rule in rules]
+    )
+    
+   
+    return df
 end
