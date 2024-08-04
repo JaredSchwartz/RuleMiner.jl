@@ -305,3 +305,23 @@ end
     @test remainder.N == [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
     @test remainder.Length == [1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 3]
 end
+
+@testset "genmax.jl" begin
+    @testset "percentage support" begin
+        sets = genmax(data,max_perc_sup)
+        setsorter!(sets)
+        @test sets.Itemset == max_items
+        @test sets.Support ≈ max_supports
+        @test sets.N == max_N
+        @test sets.Length == max_length
+    end
+    
+    @testset "asbolute support" begin
+        sets = genmax(data,max_abs_sup)
+        setsorter!(sets)
+        @test sets.Itemset == max_items
+        @test sets.Support ≈ max_supports
+        @test sets.N == max_N
+        @test sets.Length == max_length
+    end
+end
