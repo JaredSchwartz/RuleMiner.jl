@@ -47,7 +47,7 @@ Load data to create a Transactions object or alternatively convert an existing 1
 ```julia
 data = load_transactions("retail.txt",' ')
 
-data = transactions(df)
+data = Transactions(df)
 ```
 
 Generate association rules using _A Priori_ with 10% minimum support and a max rule length of 3.

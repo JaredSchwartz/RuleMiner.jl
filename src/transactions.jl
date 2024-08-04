@@ -283,9 +283,7 @@ Convert a Transactions object into a DataFrame.
 
 # Arguments
 - `txns::Transactions`: The Transactions object to be converted.
-
-# Keyword Arguments
-- `id_col::Bool = false`: If true, includes an 'Index' column with transaction identifiers.
+- `id_col::Bool = false`: (Optional) If true, includes an 'Index' column with transaction identifiers.
 
 # Returns
 - `DataFrame`: A DataFrame representation of the transactions.
