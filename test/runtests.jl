@@ -3,29 +3,34 @@ using Test
 
 
 @testset "transactions.jl" begin
+
+    item_vals = ["bacon", "beer", "bread", "buns", "butter", "cheese", "eggs", "flour", "ham", "hamburger", "hot dogs", "ketchup", "milk", "mustard", "sugar", "turkey"]
+    nonindex_vals = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
+    index_vals = ["1111", "1112", "1113", "1114", "1115", "1116", "1117", "1118", "1119"]
+
     @testset "Load Files" begin
         @testset "regular load" begin
             data = load_transactions(joinpath(@__DIR__,"files/data.txt"),',')
             @test size(data.matrix) == (9,16)
             @test sum(data.matrix) == 36
-            @test sort(collect(values(data.colkeys))) == ["bacon", "beer", "bread", "buns", "butter", "cheese", "eggs", "flour", "ham", "hamburger", "hot dogs", "ketchup", "milk", "mustard", "sugar", "turkey"]
-            @test sort(collect(values(data.linekeys))) == ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
+            @test sort(collect(values(data.colkeys))) == item_vals
+            @test sort(collect(values(data.linekeys))) == nonindex_vals
         end
 
         @testset "line indexes" begin
             data = load_transactions(joinpath(@__DIR__,"files/data_indexed.txt"),',';id_col = true)
             @test size(data.matrix) == (9,16)
             @test sum(data.matrix) == 36
-            @test sort(collect(values(data.colkeys))) == ["bacon", "beer", "bread", "buns", "butter", "cheese", "eggs", "flour", "ham", "hamburger", "hot dogs", "ketchup", "milk", "mustard", "sugar", "turkey"]
-            @test sort(collect(values(data.linekeys))) == ["1111", "1112", "1113", "1114", "1115", "1116", "1117", "1118", "1119"]
+            @test sort(collect(values(data.colkeys))) == item_vals
+            @test sort(collect(values(data.linekeys))) == index_vals
         end
 
         @testset "skip lines" begin
             data = load_transactions(joinpath(@__DIR__,"files/data_header.txt"),',';skiplines=2)
             @test size(data.matrix) == (9,16)
             @test sum(data.matrix) == 36
-            @test sort(collect(values(data.colkeys))) == ["bacon", "beer", "bread", "buns", "butter", "cheese", "eggs", "flour", "ham", "hamburger", "hot dogs", "ketchup", "milk", "mustard", "sugar", "turkey"]
-            @test sort(collect(values(data.linekeys))) == ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
+            @test sort(collect(values(data.colkeys))) == item_vals
+            @test sort(collect(values(data.linekeys))) == nonindex_vals
         end
 
         @testset "n lines" begin
@@ -41,22 +46,22 @@ using Test
         data = load_transactions(joinpath(@__DIR__,"files/data.txt"),',')
         dftest = txns_to_df(data)
         data = load_transactions(joinpath(@__DIR__,"files/data_indexed.txt"),',';id_col = true)
-        dftest_index =  txns_to_df(data,id_col=true)
+        dftest_index =  txns_to_df(data,true)
 
         @testset "without index" begin
-            data = transactions(dftest)
+            data = Transactions(dftest)
             @test size(data.matrix) == (9,16)
             @test sum(data.matrix) == 36
-            @test sort(collect(values(data.colkeys))) == ["bacon", "beer", "bread", "buns", "butter", "cheese", "eggs", "flour", "ham", "hamburger", "hot dogs", "ketchup", "milk", "mustard", "sugar", "turkey"]
-            @test sort(collect(values(data.linekeys))) == ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
+            @test sort(collect(values(data.colkeys))) == item_vals
+            @test sort(collect(values(data.linekeys))) == nonindex_vals
         end
 
         @testset "with index" begin
-            data = transactions(dftest_index;indexcol=:Index)
+            data = Transactions(dftest_index,:Index)
             @test size(data.matrix) == (9,16)
             @test sum(data.matrix) == 36
-            @test sort(collect(values(data.colkeys))) == ["bacon", "beer", "bread", "buns", "butter", "cheese", "eggs", "flour", "ham", "hamburger", "hot dogs", "ketchup", "milk", "mustard", "sugar", "turkey"]
-            @test sort(collect(values(data.linekeys))) == ["1111", "1112", "1113", "1114", "1115", "1116", "1117", "1118", "1119"]
+            @test sort(collect(values(data.colkeys))) == item_vals
+            @test sort(collect(values(data.linekeys))) == index_vals
         end
 
     end

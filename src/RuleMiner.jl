@@ -23,7 +23,7 @@
 
 module RuleMiner
 
-using DataFrames, LuxurySparse, Mmap, Base.Threads, SparseArrays, Combinatorics
+using DataFrames, Mmap, Base.Threads, SparseArrays, Combinatorics
 
 include("transactions.jl")
 # Frequent Itemset Mining

@@ -34,16 +34,6 @@ Parameters:
 Returns: 
 - `Transactions`: A Transactions object with a sparse matrix representing the treansactions (rows) and items (columns) as well as dictionary keys for the names of the rows and columns
 
-## transactions
-```@docs
-transactions(df::DataFrame;indexcol::Union{Symbol,Nothing}=nothing)
-```
-Converts a one-hot encoded DataFrame into a Transactions object.
-
-Parameters:
-
-- `df`: Input `DataFrame`
-- `indexcol`: Column to use as the index (optional)
 
 ## txns\_to\_df
 ```@docs
