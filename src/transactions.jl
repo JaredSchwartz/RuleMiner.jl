@@ -225,7 +225,7 @@ function load_transactions(file::String, delimiter::Char; id_col::Bool = false, 
 end
 
 """
-    convert_csc!(column_values::Vector{Int}, row_values::Vector{Int}, n_cols::Int) -> Tuple{Vector{Int}, Vector{Int}}
+    convert_csc!(column_values::Vector{Int}, row_values::Vector{Int}, n_cols::Int)::Tuple{Vector{Int}, Vector{Int}}
 
 Convert COO (Coordinate) format sparse matrix data to CSC (Compressed Sparse Column) format.
 

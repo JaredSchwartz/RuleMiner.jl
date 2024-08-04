@@ -35,4 +35,6 @@ include("charm.jl")
 include("carpenter.jl")
 include("lcm.jl")
 include("levelwise.jl")
+# Maximal Itemset Mining
+include("genmax.jl")
 end

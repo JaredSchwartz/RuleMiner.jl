@@ -24,7 +24,8 @@ makedocs(
             "Levelwise" => "algorithms/levelwise.md"
         ],
         "Maximal Itemset Mining" => Any[
-            "FPMax" => "algorithms/fpmax.md"
+            "FPMax" => "algorithms/fpmax.md",
+            "GenMax" => "algorithms/genmax.md"
         ],
     ],
     warnonly = [:missing_docs, :cross_references],
