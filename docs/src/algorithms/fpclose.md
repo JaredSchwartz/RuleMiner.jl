@@ -24,9 +24,8 @@ A DataFrame object with four columns:
 Algorithm Overview
 
 1. The function starts by constructing an FP-tree from the transaction dataset.
-2. It then recursively mines the FP-tree to find all candidate closed itemsets.
-3. Prune non-closed itemsets by checking for supersets with the same support.
-4. The process continues until all frequent itemsets are discovered.
+2. It then recursively mines the FP-tree to find all closed itemsets, with closed-ness checking occuring at each level of recursion.
+3. The process continues until all closed itemsets are discovered.
 
 ```julia
 # Load transactions

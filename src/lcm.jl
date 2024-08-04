@@ -34,10 +34,8 @@ When a Float value is supplied, it will use relative support (percentage).
 function LCM(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
     n_transactions, n_items = size(txns.matrix)
     
-    # Convert relative support to absolute support if necessary
-    if min_support isa Float64
-        min_support = ceil(Int, min_support * n_transactions)
-    end
+    # Handle min_support as a float value
+    min_support = min_support isa Float64 ? ceil(Int, min_support * n_transactions) : min_support
 
     # Create tidsets (transaction ID sets) for each item
     tidsets = [BitSet(findall(txns.matrix[:,col])) for col in 1:n_items]
@@ -57,9 +55,7 @@ function LCM(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
         
         lock(dict_lock) do
             # If we've seen this closure with equal or higher support, skip it
-            if haskey(closed_itemsets, closure) && closed_itemsets[closure] >= support
-                return
-            end
+            (haskey(closed_itemsets, closure) && closed_itemsets[closure] >= support) && return
 
             # Add Closure to Dict
             if !isempty(closure)

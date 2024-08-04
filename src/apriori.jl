@@ -126,7 +126,5 @@ function apriori(txns::Transactions, min_support::Union{Int,Float64}, max_length
         N = [rule.n for rule in rules],
         Length = [length(rule.lin) for rule in rules]
     )
-    
-   
     return df
 end

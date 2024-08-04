@@ -36,9 +36,7 @@ function eclat(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
     n_transactions = size(txns.matrix, 1)
     
     # Handle min_support as a float value
-    if min_support isa Float64
-        min_support = ceil(Int, min_support * n_transactions)
-    end
+    min_support = min_support isa Float64 ? ceil(Int, min_support * n_transactions) : min_support
 
     # Calculate initial supports and sort the columns
     item_index = collect(1:size(txns.matrix, 2))
@@ -62,15 +60,22 @@ function eclat(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
             new_lineage = vcat(lineage, item)
             support = sum(all(trans[:, new_lineage], dims=2))
     
-            if support >= min_support
-                lock(ThreadLock) do
-                    Results[new_lineage] = support
-                end
-                new_items = items[i+1:end]
-                if !isempty(new_items)
-                    eclat!(new_lineage, new_items, trans, min_support)
-                end
+            # Skip this itemset if it does not meet minimum suppot
+            support < min_support && continue
+
+            # Add the Itemset to results
+            lock(ThreadLock) do
+                Results[new_lineage] = support
             end
+
+            # Generate new possible items
+            new_items = items[i+1:end]
+
+            # If no additional items, skip recursion
+            isempty(new_items) && continue
+            
+            # Recurse with new items
+            eclat!(new_lineage, new_items, trans, min_support)
         end
     end
 

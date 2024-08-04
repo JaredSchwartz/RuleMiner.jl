@@ -126,7 +126,7 @@ This is a function which constructs an `FPTree`` object from a `Transactions` ob
 function make_FPTree(txns::Transactions, min_support::Int)::FPTree
     n_transactions = size(txns.matrix, 1)
 
-    # Create a construction tree using the existing FPTree struct
+    # Create a construction tree
     construction_tree = FPTree()
     construction_tree.root = AtomicNode(-1)
 
