@@ -26,7 +26,7 @@ export genmax
 """
     genmax(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
 
-Implements the GenMax algorithm to find maximal frequent itemsets in a transactional dataset.
+Identify maximal frequent itemsets in a transactional dataset with the GenMax algorithm.
 
 # Arguments
 - `txns::Transactions`: A `Transactions` object containing the dataset to mine.
@@ -36,7 +36,7 @@ Implements the GenMax algorithm to find maximal frequent itemsets in a transacti
 # Returns
 - `DataFrame`: A DataFrame containing the maximal frequent itemsets, with columns:
   - `Itemset`: The items in the maximal frequent itemset.
-  - `Support`: The support of the itemset as a proportion of total transactions.
+  - `Support`: The relative support of the itemset as a proportion of total transactions.
   - `N`: The absolute support count of the itemset.
   - `Length`: The number of items in the itemset.
 
@@ -55,7 +55,13 @@ txns = load_transactions("transactions.txt", ' ')
 
 # Find maximal frequent itemsets with 5% minimum support
 result = genmax(txns, 0.05)
+
+# Find maximal frequent itemsets with minimum 5,000 transactions
+result = genmax(txns, 5_000)
 ```
+
+# References
+Gouda, Karam, and Mohammed J. Zaki. “GenMax: An Efficient Algorithm for Mining Maximal Frequent Itemsets.” Data Mining and Knowledge Discovery 11, no. 3 (November 1, 2005): 223–42. https://doi.org/10.1007/s10618-005-0002-x.
 """
 function genmax(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
     n_transactions, n_items = size(txns.matrix)
@@ -129,7 +135,7 @@ function genmax(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
 
     # Create output DataFrame
     df = DataFrame(
-        Itemset = [getnames(itemset, txns) for itemset in result],
+        Itemset = [RuleMiner.getnames(itemset, txns) for itemset in result],
         Support = [length(intersect([item_bitsets[findfirst(==(item), frequent_items)] for item in itemset]...)) / n_transactions for itemset in result],
         N = [length(intersect([item_bitsets[findfirst(==(item), frequent_items)] for item in itemset]...)) for itemset in result],
         Length = [length(itemset) for itemset in result]

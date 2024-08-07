@@ -22,7 +22,7 @@
 # SOFTWARE.
 
 
-export Transactions, getnames, load_transactions, txns_to_df
+export Transactions, load_transactions, txns_to_df
 
 
 """

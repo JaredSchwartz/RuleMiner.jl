@@ -26,7 +26,39 @@ export levelwise
 """
     levelwise(df::DataFrame, min_n::Int)::DataFrame
 
-Recover frequent itemsets from a dataframe `df` of closed itemsets with minimum absolute support `min_n`
+Recover frequent itemsets from a DataFrame of closed itemsets
+
+# Arguments
+- `df::DataFrame`: A DataFrame containing the maximal frequent itemsets, with columns:
+  - `Itemset`: The items in the maximal frequent itemset.
+  - `Support`: The relative support of the itemset as a proportion of total transactions.
+  - `N`: The absolute support count of the itemset.
+  - `Length`: The number of items in the itemset.
+- `min_support::Int`: The minimum support threshold for the rules. This algorithm only takes absolute (integer) support
+
+# Returns
+- `DataFrame`: A DataFrame containing the maximal frequent itemsets, with columns:
+  - `Itemset`: The items in the maximal frequent itemset.
+  - `N`: The absolute support count of the itemset.
+  - `Length`: The number of items in the itemset.
+
+# Description
+
+# Example
+```julia
+txns = load_transactions("transactions.txt", ' ')
+
+# Find closed frequent itemsets with minimum 5,000 transactions
+closed_sets = LCM(txns, 5_000)
+
+# Recover frequent itemsets from the closed itemsets
+frequent_sets = levelwise(closed_sets, 5_000)
+```
+
+# References
+Pasquier, Nicolas, Yves Bastide, Rafik Taouil, and Lotfi Lakhal. “Efficient Mining of Association Rules Using Closed Itemset Lattices.” 
+Information Systems 24, no. 1 (March 1, 1999): 25–46. https://doi.org/10.1016/S0306-4379(99)00003-4.
+
 """
 function levelwise(df::DataFrame, min_n::Int)::DataFrame
     # Helper function to generate all k-subsets of an itemset

@@ -270,10 +270,44 @@ end
 """
     fpgrowth(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
 
-Identify frequent itemsets in a transactional dataset `txns` with a minimum support: `min_support`.
+Identify frequent itemsets in a transactional dataset with the FPGrowth algorithm.
 
-When an Int value is supplied to min_support, eclat will use absolute support (count) of transactions as minimum support.
-When a Float value is supplied, it will use relative support (percentage).
+# Arguments
+- `txns::Transactions`: A `Transactions` object containing the dataset to mine.
+- `min_support::Union{Int,Float64}`: The minimum support threshold. If an `Int`, it represents 
+  the absolute support. If a `Float64`, it represents relative support.
+
+# Returns
+- `DataFrame`: A DataFrame containing the maximal frequent itemsets, with columns:
+  - `Itemset`: The items in the maximal frequent itemset.
+  - `Support`: The relative support of the itemset as a proportion of total transactions.
+  - `N`: The absolute support count of the itemset.
+  - `Length`: The number of items in the itemset.
+
+# Description
+The FPGrowth algorithm is a mining technique that builds a compart summary fo the transction data called an FP tree. 
+This tree summarizes the supports and relationships between items in a way that can be easily transversed and processed to find frequent itemsets. 
+FPGrowth is particularly efficient for datasets with long transactions or sparse frequent itemsets.
+
+1. FP-tree Construction: Builds a compact representation of the dataset, organizing items 
+   by their frequency to allow efficient mining.
+
+2. Recursive Tree Traversal: 
+   - Processes items in reverse order of frequency.
+   - For each item, creates a conditional FP-tree and recursively mines it.
+
+# Example
+```julia
+txns = load_transactions("transactions.txt", ' ')
+
+# Find frequent itemsets with 5% minimum support
+result = fpgrowth(txns, 0.05)
+
+# Find frequent itemsets with minimum 5,000 transactions
+result = fpgrowth(txns, 5_000)
+```
+# References
+Han, Jiawei, Jian Pei, and Yiwen Yin. “Mining Frequent Patterns without Candidate Generation.” SIGMOD Rec. 29, no. 2 (May 16, 2000): 1–12. https://doi.org/10.1145/335191.335372.
 """
 function fpgrowth(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
     n_transactions = size(txns.matrix, 1)
@@ -319,7 +353,7 @@ function fpgrowth(txns::Transactions, min_support::Union{Int,Float64})::DataFram
     
     # Create the result DataFrame
     result_df = DataFrame(
-        Itemset = [getnames(itemset, txns) for itemset in keys(Results)],
+        Itemset = [RuleMiner.getnames(itemset, txns) for itemset in keys(Results)],
         Support = [support / n_transactions for support in values(Results)],
         N = collect(values(Results)),
         Length = [length(itemset) for itemset in keys(Results)]
@@ -334,10 +368,49 @@ end
 """
     fpclose(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
 
-Identify closed itemsets in a transactional dataset `txns` with a minimum support: `min_support`.
+Identify closed frequent itemsets in a transactional dataset with the FPClose algorithm.
 
-When an Int value is supplied to min_support, eclat will use absolute support (count) of transactions as minimum support.
-When a Float value is supplied, it will use relative support (percentage).
+# Arguments
+- `txns::Transactions`: A `Transactions` object containing the dataset to mine.
+- `min_support::Union{Int,Float64}`: The minimum support threshold. If an `Int`, it represents 
+  the absolute support. If a `Float64`, it represents relative support.
+
+# Returns
+- `DataFrame`: A DataFrame containing the maximal frequent itemsets, with columns:
+  - `Itemset`: The items in the maximal frequent itemset.
+  - `Support`: The relative support of the itemset as a proportion of total transactions.
+  - `N`: The absolute support count of the itemset.
+  - `Length`: The number of items in the itemset.
+
+# Description
+The FPClose algorithm is an extension of FP-Growth with 
+additional pruning techniques to focus on mining closed itemsets. The algorithm operates in two main phases:
+
+1. FP-tree Construction: Builds a compact representation of the dataset, organizing items 
+   by their frequency to allow efficient mining.
+
+2. Recursive Tree Traversal: 
+   - Processes items in reverse order of frequency.
+   - For each item, creates a conditional FP-tree and recursively mines it.
+   - Uses a depth-first search strategy, exploring longer itemsets before shorter ones.
+   - Employs pruning techniques to avoid generating non-closed itemsets.
+
+FPClose is particularly efficient for datasets with long transactions or sparse frequent itemsets, 
+as it can significantly reduce the number of generated itemsets compared to algorithms that 
+find all frequent itemsets.
+
+# Example
+```julia
+txns = load_transactions("transactions.txt", ' ')
+
+# Find closed frequent itemsets with 5% minimum support
+result = fpclose(txns, 0.05)
+
+# Find closed frequent itemsets with minimum 5,000 transactions
+result = fpclose(txns, 5_000)
+```
+# References
+Grahne, Gösta, and Jianfei Zhu. “Fast Algorithms for Frequent Itemset Mining Using FP-Trees.” IEEE Transactions on Knowledge and Data Engineering 17, no. 10 (October 2005): 1347–62. https://doi.org/10.1109/TKDE.2005.166.
 """
 function fpclose(txns::Transactions, min_support::Union{Int,Float64})
     n_transactions = size(txns.matrix, 1)
@@ -394,7 +467,7 @@ function fpclose(txns::Transactions, min_support::Union{Int,Float64})
     fpclose!(Results, tree, Int[], min_support)
 
     df = DataFrame(
-        Itemset = [getnames(itemset, txns) for itemset in keys(Results)], 
+        Itemset = [RuleMiner.getnames(itemset, txns) for itemset in keys(Results)], 
         Support = [support / n_transactions for support in values(Results)],
         N = collect(values(Results)),
         Length = [length(itemset) for itemset in keys(Results)]
@@ -409,10 +482,53 @@ end
 """
     fpmax(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
 
-Identify maximal frequent itemsets in a transactional dataset `txns` with a minimum support: `min_support`.
+Identify maximal frequent itemsets in a transactional dataset with the FPMax algorithm.
 
-When an Int value is supplied to min_support, fpmax will use absolute support (count) of transactions as minimum support.
-When a Float value is supplied, it will use relative support (percentage).
+# Arguments
+- `txns::Transactions`: A `Transactions` object containing the dataset to mine.
+- `min_support::Union{Int,Float64}`: The minimum support threshold. If an `Int`, it represents 
+  the absolute support. If a `Float64`, it represents relative support.
+
+# Returns
+- `DataFrame`: A DataFrame containing the maximal frequent itemsets, with columns:
+  - `Itemset`: The items in the maximal frequent itemset.
+  - `Support`: The relative support of the itemset as a proportion of total transactions.
+  - `N`: The absolute support count of the itemset.
+  - `Length`: The number of items in the itemset.
+
+# Description
+The FPMax algorithm is an extension of FP-Growth with 
+additional pruning techniques to focus on mining maximal itemsets. The algorithm operates in three main phases:
+
+1. FP-tree Construction: Builds a compact representation of the dataset, organizing items 
+   by their frequency to allow efficient mining.
+
+2. Recursive Tree Traversal: 
+   - Processes items in reverse order of frequency.
+   - For each item, creates a conditional FP-tree and recursively mines it.
+   - Uses a depth-first search strategy, exploring longer itemsets before shorter ones.
+   - Employs pruning techniques to avoid generating non-maximal itemsets.
+   - Adds an itemset to the candidate set when no frequent superset exists.
+
+3. Maximality Checking: After the recursive traversal, filters the candidate set to ensure 
+   only truly maximal itemsets are included in the final output.
+
+FPMax is particularly efficient for datasets with long transactions or sparse frequent itemsets, 
+as it can significantly reduce the number of generated itemsets compared to algorithms that 
+find all frequent itemsets.
+
+# Example
+```julia
+txns = load_transactions("transactions.txt", ' ')
+
+# Find maximal frequent itemsets with 5% minimum support
+result = fpmax(txns, 0.05)
+
+# Find maximal frequent itemsets with minimum 5,000 transactions
+result = fpmax(txns, 5_000)
+```
+# References
+Grahne, Gösta, and Jianfei Zhu. “Fast Algorithms for Frequent Itemset Mining Using FP-Trees.” IEEE Transactions on Knowledge and Data Engineering 17, no. 10 (October 2005): 1347–62. https://doi.org/10.1109/TKDE.2005.166.
 """
 function fpmax(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
     n_transactions = size(txns.matrix, 1)
@@ -471,7 +587,7 @@ function fpmax(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
 
     # Create the result DataFrame
     result_df = DataFrame(
-        Itemset = [getnames(itemset, txns) for itemset in maximal_itemsets],
+        Itemset = [RuleMiner.getnames(itemset, txns) for itemset in maximal_itemsets],
         Length = [length(itemset) for itemset in maximal_itemsets],
         Support = [sum(all(txns.matrix[:, itemset], dims=2)) / n_transactions for itemset in maximal_itemsets],
         N = [sum(all(txns.matrix[:, itemset], dims=2)) for itemset in maximal_itemsets]
