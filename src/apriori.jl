@@ -36,12 +36,52 @@ end
     apriori(txns::Transactions, min_support::Union{Int,Float64}, max_length::Int)::DataFrame
 
 
-Identify association rules in a transactional dataset `txns`, with minimum support, `min_support`, 
-and maximum rule length, `max_length`.
+Identify association rules in a transactional dataset using the A Priori Algorithm
 
-When an Int value is supplied to min_support, apriori will use absolute support (count) of transactions as minimum support.
+# Arguments
+- `txns::Transactions`: A `Transactions` object containing the dataset to mine.
+- `min_support::Union{Int,Float64}`: The minimum support threshold. If an `Int`, it represents 
+  the absolute support. If a `Float64`, it represents relative support.
+- `max_length::Int`: The maximum length of the rules to be generated.
 
-When a Float value is supplied, it will use relative support (percentage).
+# Returns
+A DataFrame containing the discovered association rules with the following columns:
+- `LHS`: The left-hand side (antecedent) of the rule.
+- `RHS`: The right-hand side (consequent) of the rule.
+- `Support`: Relative support of the rule.
+- `Confidence`: Confidence of the rule.
+- `Coverage`: Coverage (RHS support) of the rule.
+- `Lift`: Lift of the association rule.
+- `N`: Absolute support of the association rule.
+- `Length`: Length of the association rule.
+
+# Description
+
+The Apriori algorithm employs a breadth-first, level-wise search strategy to discover 
+frequent itemsets. It starts by identifying frequent individual items and iteratively 
+builds larger itemsets by combining smaller frequent itemsets. At each iteration, it 
+generates candidate itemsets of size k from itemsets of size k-1, then prunes candidates 
+that have any infrequent subset. 
+
+The algorithm uses the downward closure property, which 
+states that any subset of a frequent itemset must also be frequent. This property allows 
+Apriori to efficiently narrow the search space. Once all frequent itemsets up to the 
+specified maximum length are found, the algorithm generates association rules and 
+calculates their support, confidence, and other metrics.
+
+# Example
+```julia
+txns = load_transactions("transactions.txt", ' ')
+
+# Find rules with 5% min support and max length of 3
+result = apriori(txns, 0.05, 3)
+
+# Find rules with with at least 5,000 instances and max length of 3
+result = apriori(txns, 5_000, 3)
+```
+
+# References
+Agrawal, Rakesh, and Ramakrishnan Srikant. “Fast Algorithms for Mining Association Rules in Large Databases.” In Proceedings of the 20th International Conference on Very Large Data Bases, 487–99. VLDB ’94. San Francisco, CA, USA: Morgan Kaufmann Publishers Inc., 1994.
 """
 function apriori(txns::Transactions, min_support::Union{Int,Float64}, max_length::Int)::DataFrame
     
@@ -117,7 +157,7 @@ function apriori(txns::Transactions, min_support::Union{Int,Float64}, max_length
 
     # Convert rules to DataFrame and calculate metrics
     df = DataFrame(
-        LHS = [getnames([items[i] for i in rule.lhs], txns) for rule in rules],
+        LHS = [RuleMiner.getnames([items[i] for i in rule.lhs], txns) for rule in rules],
         RHS = [txns.colkeys[items[rule.rhs]] for rule in rules],
         Support = [rule.n / baselen for rule in rules],
         Confidence = [rule.n / rule.cov for rule in rules],

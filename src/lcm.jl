@@ -26,10 +26,37 @@ export LCM
 """
     LCM(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
 
-Identify frequent closed itemsets in a transactional dataset `txns` with a minimum support: `min_support`.
+Identify closed frequent itemsets in a transactional dataset with the LCM algorithm.
 
-When an Int value is supplied to min_support, lcm will use absolute support (count) of transactions as minimum support.
-When a Float value is supplied, it will use relative support (percentage).
+# Arguments
+- `txns::Transactions`: A `Transactions` object containing the dataset to mine.
+- `min_support::Union{Int,Float64}`: The minimum support threshold. If an `Int`, it represents 
+  the absolute support. If a `Float64`, it represents relative support.
+
+# Returns
+- `DataFrame`: A DataFrame containing the maximal frequent itemsets, with columns:
+  - `Itemset`: The items in the maximal frequent itemset.
+  - `Support`: The relative support of the itemset as a proportion of total transactions.
+  - `N`: The absolute support count of the itemset.
+  - `Length`: The number of items in the itemset.
+
+# Description
+LCM is an algorithm that uses a depth-first search pattern with closed-ness checking to return only closed itemsets.
+It utilizes two key pruning techniques to avoid redundant mining: prefix-preserving closure extension and progressive database reduction.
+
+# Example
+```julia
+txns = load_transactions("transactions.txt", ' ')
+
+# Find closed frequent itemsets with 5% minimum support
+result = LCM(txns, 0.05)
+
+# Find closed frequent itemsets with minimum 5,000 transactions
+result = LCM(txns, 5_000)
+```
+# References
+Uno, Takeaki, Tatsuya Asai, Yuzo Uchida, and Hiroki Arimura. “An Efficient Algorithm for Enumerating Closed Patterns in Transaction Databases.” 
+In Discovery Science, edited by Einoshin Suzuki and Setsuo Arikawa, 16–31. Berlin, Heidelberg: Springer, 2004. https://doi.org/10.1007/978-3-540-30214-8_2.
 """
 function LCM(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
     n_transactions, n_items = size(txns.matrix)
@@ -92,7 +119,7 @@ function LCM(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
 
     # Convert results to a DataFrame
     result = DataFrame(
-        Itemset = [getnames(itemset, txns) for itemset in keys(Results)],
+        Itemset = [RuleMiner.getnames(itemset, txns) for itemset in keys(Results)],
         Support = [support / n_transactions for support in values(Results)],
         N = collect(values(Results)),
         Length = [length(itemset) for itemset in keys(Results)]

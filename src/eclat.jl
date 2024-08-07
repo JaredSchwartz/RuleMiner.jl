@@ -26,11 +26,45 @@ export eclat
 """
     eclat(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
 
+Perform frequent itemset mining using the ECLAT (Equivalence CLAss Transformation) algorithm 
+on a transactional dataset.
 
-Identify frequent itemsets in a transactional dataset `txns` with a minimum support: `min_support`.
+ECLAT is an efficient algorithm for discovering frequent itemsets, which are sets of items 
+that frequently occur together in the dataset.
 
-When an Int value is supplied to min_support, eclat will use absolute support (count) of transactions as minimum support.
-When a Float value is supplied, it will use relative support (percentage).
+# Arguments
+- `txns::Transactions`: A `Transactions` object containing the encoded transaction dataset 
+  as a sparse CSC matrix along with row and column name keys.
+- `min_support::Union{Int,Float64}`: The minimum support threshold for the itemsets.
+  - If `Int`: Represents the absolute support (count) of transactions.
+  - If `Float64`: Represents the relative support (percentage) of transactions.
+
+# Returns
+A DataFrame containing the discovered frequent itemsets with the following columns:
+- `Itemset`: Vector of item names in the frequent itemset.
+- `Support`: Relative support of the itemset.
+- `N`: Absolute support count of the itemset.
+- `Length`: Number of items in the itemset.
+
+# Algorithm Description
+The ECLAT algorithm uses a depth-first search strategy and a vertical database layout to 
+efficiently mine frequent itemsets. It starts by computing the support of individual items 
+and organizing them in descending order of frequency and then recursively builds larger itemsets
+ECLAT's depth-first approach enables it to quickly identify long frequent itemsets and can be 
+particularly efficient for sparse datasets.
+
+# Example
+```julia
+txns = load_transactions("transactions.txt", ' ')
+
+# Find frequent itemsets with 5% minimum support
+result = eclat(txns, 0.05)
+
+# Find frequent itemsets with minimum 5,000 transactions
+result = eclat(txns, 5_000)
+```
+# References
+Zaki, Mohammed. “Scalable Algorithms for Association Mining.” Knowledge and Data Engineering, IEEE Transactions On 12 (June 1, 2000): 372–90. https://doi.org/10.1109/69.846291.
 """
 function eclat(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
     n_transactions = size(txns.matrix, 1)
@@ -87,7 +121,7 @@ function eclat(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
     
     # Create the result DataFrame
     result_df = DataFrame(
-        Itemset = [getnames(itemset, txns) for itemset in keys(Results)],
+        Itemset = [RuleMiner.getnames(itemset, txns) for itemset in keys(Results)],
         Support = [support / n_transactions for support in values(Results)],
         N = collect(values(Results)),
         Length = [length(itemset) for itemset in keys(Results)]

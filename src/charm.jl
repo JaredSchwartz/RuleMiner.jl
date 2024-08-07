@@ -26,10 +26,36 @@ export charm
 """
     charm(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
 
-Identify closed frequent itemsets in a transactional dataset `txns` with a minimum support: `min_support`.
+Identify closed frequent itemsets in a transactional dataset with the CHARM algorithm.
 
-When an Int value is supplied to min_support, charm will use absolute support (count) of transactions as minimum support.
-When a Float value is supplied, it will use relative support (percentage).
+# Arguments
+- `txns::Transactions`: A `Transactions` object containing the dataset to mine.
+- `min_support::Union{Int,Float64}`: The minimum support threshold. If an `Int`, it represents 
+  the absolute support. If a `Float64`, it represents relative support.
+
+# Returns
+- `DataFrame`: A DataFrame containing the maximal frequent itemsets, with columns:
+  - `Itemset`: The items in the maximal frequent itemset.
+  - `Support`: The relative support of the itemset as a proportion of total transactions.
+  - `N`: The absolute support count of the itemset.
+  - `Length`: The number of items in the itemset.
+
+# Description
+CHARM is an algorithm that builds on the ECLAT algorithm but adds additional closed-ness checking to return only closed itemsets.
+It uses a depth-first approach, exploring the search space and checking found itemsets against previously discovered itemsets to determine closedness.
+
+# Example
+```julia
+txns = load_transactions("transactions.txt", ' ')
+
+# Find closed frequent itemsets with 5% minimum support
+result = charm(txns, 0.05)
+
+# Find closed frequent itemsets with minimum 5,000 transactions
+result = charm(txns, 5_000)
+```
+# References
+Zaki, Mohammed, and Ching-Jui Hsiao. “CHARM: An Efficient Algorithm for Closed Itemset Mining.” In Proceedings of the 2002 SIAM International Conference on Data Mining (SDM), 457–73. Proceedings. Society for Industrial and Applied Mathematics, 2002. https://doi.org/10.1137/1.9781611972726.27.
 """
 function charm(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
     n_transactions, n_items = size(txns.matrix)
@@ -126,7 +152,7 @@ function charm(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
     
     # Create the result DataFrame
     result_df = DataFrame(
-        Itemset = [getnames(itemset, txns) for itemset in keys(Results)],
+        Itemset = [RuleMiner.getnames(itemset, txns) for itemset in keys(Results)],
         Support = [support / n_transactions for support in values(Results)],
         N = collect(values(Results)),
         Length = [length(itemset) for itemset in keys(Results)]

@@ -8,25 +8,13 @@ makedocs(
     draft = false,
     pages=[
         "Home" => "index.md",
+        "Association Rule Mining" => "association_rules.md",
+        "Itemset Mining" => Any[
+            "Frequent Itemset Mining" => "frequent_itemsets.md",
+            "Closed Itemset Mining" => "closed_itemsets.md",
+            "Maximal Itemset Mining" => "maximal_itemsets.md",
+        ],
         "Transactions Objects" => "transactions.md",
-        "Association Rule Mining" => Any[
-            "A Priori" => "algorithms/apriori.md"
-        ],
-        "Frequent Itemset Mining" => Any[
-            "ECLAT" => "algorithms/eclat.md",
-            "FP-Growth" => "algorithms/fpgrowth.md"
-        ],
-        "Closed Itemset Mining" => Any[
-            "FPClose" => "algorithms/fpclose.md",
-            "CHARM" => "algorithms/charm.md",
-            "LCM" => "algorithms/lcm.md",
-            "Carpenter" => "algorithms/carpenter.md",
-            "Levelwise" => "algorithms/levelwise.md"
-        ],
-        "Maximal Itemset Mining" => Any[
-            "FPMax" => "algorithms/fpmax.md",
-            "GenMax" => "algorithms/genmax.md"
-        ],
     ],
     warnonly = [:missing_docs, :cross_references],
 )

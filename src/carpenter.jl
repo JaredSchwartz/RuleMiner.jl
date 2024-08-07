@@ -26,10 +26,36 @@ export carpenter
 """
     carpenter(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
 
-Identify closed frequent itemsets in a transactional dataset `txns` with a minimum support: `min_support`.
+Identify closed frequent itemsets in a transactional dataset with the CARPENTER algorithm.
 
-When an Int value is supplied to min_support, carpenter will use absolute support (count) of transactions as minimum support.
-When a Float value is supplied, it will use relative support (percentage).
+# Arguments
+- `txns::Transactions`: A `Transactions` object containing the dataset to mine.
+- `min_support::Union{Int,Float64}`: The minimum support threshold. If an `Int`, it represents 
+  the absolute support. If a `Float64`, it represents relative support.
+
+# Returns
+- `DataFrame`: A DataFrame containing the maximal frequent itemsets, with columns:
+  - `Itemset`: The items in the maximal frequent itemset.
+  - `Support`: The relative support of the itemset as a proportion of total transactions.
+  - `N`: The absolute support count of the itemset.
+  - `Length`: The number of items in the itemset.
+
+# Description
+CARPENTER is an algorithm that progressively builds larger itemsets, checking closed-ness at each step with three key pruning strategies. 
+It is specialized for datasets which have few transactions, but many items per transaction and may not be the best choice for other data.
+
+# Example
+```julia
+txns = load_transactions("transactions.txt", ' ')
+
+# Find closed frequent itemsets with 5% minimum support
+result = carpenter(txns, 0.05)
+
+# Find closed frequent itemsets with minimum 5,000 transactions
+result = carpenter(txns, 5_000)
+```
+# References
+Pan, Feng, Gao Cong, Anthony K. H. Tung, Jiong Yang, and Mohammed J. Zaki. “Carpenter: Finding Closed Patterns in Long Biological Datasets.” In Proceedings of the Ninth ACM SIGKDD International Conference on Knowledge Discovery and Data Mining, 637–42. KDD ’03. New York, NY, USA: Association for Computing Machinery, 2003. https://doi.org/10.1145/956750.956832.
 """
 function carpenter(txns::Transactions, min_support::Union{Int,Float64})
     n_transactions, n_items = size(txns.matrix)
@@ -90,7 +116,7 @@ function carpenter(txns::Transactions, min_support::Union{Int,Float64})
     
     # Create the result DataFrame
     result_df = DataFrame(
-        Itemset = [getnames(itemset, txns) for itemset in keys(Results)],
+        Itemset = [RuleMiner.getnames(itemset, txns) for itemset in keys(Results)],
         Support = [support / n_transactions for support in values(Results)],
         N = collect(values(Results)),
         Length = [length(itemset) for itemset in keys(Results)]
