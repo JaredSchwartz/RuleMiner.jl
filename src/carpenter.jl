@@ -41,8 +41,12 @@ Identify closed frequent itemsets in a transactional dataset with the CARPENTER 
   - `Length`: The number of items in the itemset.
 
 # Description
-CARPENTER is an algorithm that progressively builds larger itemsets, checking closed-ness at each step with three key pruning strategies. 
-It is specialized for datasets which have few transactions, but many items per transaction and may not be the best choice for other data.
+CARPENTER is an algorithm that progressively builds larger itemsets, checking closed-ness at each step with three key pruning strategies:
+- Itemsets are skipped if they have already been marked as closed on another branch
+- Itemsets are skipped if they do not meet minimum support
+- Itemsets' child itemsets are skipped if they change the support when the new items are added
+
+CARPENTER is specialized for datasets which have few transactions, but many items per transaction and may not be the best choice for other data.
 
 # Example
 ```julia

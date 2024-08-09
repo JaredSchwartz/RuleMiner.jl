@@ -2,9 +2,9 @@
 
 ## Description
 
-Association rule mining is a fundamental technique in data mining and machine learning that aims to uncover interesting relationships, correlations, or patterns within large datasets. Originally developed for market basket analysis in retail, it has since found applications in various fields such as web usage mining, intrusion detection, and bioinformatics. The primary goal of association rule mining is to identify strong rules discovered in databases using different measures of interestingness.
+Association rule mining is a fundamental technique in data mining and machine learning that aims to uncover interesting relationships, correlations, or patterns within large datasets. Originally developed for market basket analysis in retail, it has since found applications in various fields such as web usage mining, intrusion detection, and bioinformatics. The primary goal of association rule mining is to identify strong association rules rules discovered in databases using different measures of interestingness like support, confidence, coverage, and lift.
 
-At its core, association rule mining works by examining frequent if-then patterns in transactional databases. These patterns, known as association rules, take the form "if A, then B," where A and B are sets of items. For example, in a supermarket context, a rule might be "if a customer buys bread and butter, they are likely to buy milk." The strength of these rules is typically measured by support (how frequently the items appear together), confidence (how often the rule is found to be true), and lift (the ratio of observed support to expected support if A and B were independent). By setting minimum thresholds for these metrics, analysts can filter out weak or uninteresting rules and focus on those that are most likely to provide valuable insights or actionable information.
+At its core, association rule mining works by examining frequent if-then patterns in transactional databases. These patterns, known as association rules, take the form "if A, then B," where A and B are sets of items. For example, in a supermarket context, a rule might be "if a customer buys bread and butter, they are likely to buy milk." The strength of these rules is typically measured by support (how frequently the items appear together), confidence (how often the rule is found to be true), converage(how often B ocurrs in in the databse with or without A), and lift (the ratio of observed support to expected support if A and B were independent). By filtering association rules with these metrics, analysts can filter out weak or uninteresting rules and focus on those that are most likely to provide valuable insights or actionable information.
 
 ## Formal Definition
 Let:
@@ -22,7 +22,8 @@ For a given rule ``A \Rightarrow B``, these measures are defined:
 
 - Support: ``\sigma(A \Rightarrow B) = \frac{|{T_j \in D : A \cup B \subseteq T_j}|}{|D|}``
 - Confidence: ``\chi(A \Rightarrow B) = \frac{\sigma(A \cup B)}{\sigma(A)}``
-- Lift: ``\gamma(A \Rightarrow B) = \frac{\sigma(A \cup B)}{\sigma(A) \cdot \sigma(B)}``
+- Coverage: ``\gamma(A \Rightarrow B) = \sigma(B) = \frac{|{T_j \in D : B \subseteq T_j}|}{|D|}``
+- Lift: ``L(A \Rightarrow B) = \frac{\sigma(A \cup B)}{\sigma(A) \cdot \sigma(B)}``
 
 Let ``\sigma_{min}`` and ``\chi_{min}`` be user-defined minimum thresholds for support and confidence, respectively.
 

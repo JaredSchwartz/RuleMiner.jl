@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="200mm"
+   height="80mm"
+   viewBox="0 0 200 80"
+   version="1.1"
+   id="svg1"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs1">
+    <rect
+       x="495.0777"
+       y="538.039"
+       width="173.89093"
+       height="53.190166"
+       id="rect5" />
+    <rect
+       x="66.279533"
+       y="900.98743"
+       width="515.73761"
+       height="132.55907"
+       id="rect6" />
+    <rect
+       x="66.279533"
+       y="900.98743"
+       width="515.73761"
+       height="132.55907"
+       id="rect6-5" />
+  </defs>
+  <g
+     id="layer1">
+    <g
+       id="g1"
+       transform="matrix(0.66082923,0,0,0.66082923,31.821681,-38.949629)">
+      <g
+         id="g7"
+         transform="translate(-35.119638,-36.419668)">
+        <circle
+           style="fill:#389826;fill-opacity:1;stroke-width:0.38157"
+           id="path1-90"
+           cx="38.290497"
+           cy="155.9978"
+           r="37.5" />
+        <g
+           id="g5"
+           transform="translate(0.790495,2.8748748)">
+          <circle
+             style="fill:#cb3c33;fill-opacity:1;stroke-width:0.38157"
+             id="path1-9-5"
+             cx="87.5"
+             cy="153.12292"
+             r="37.5" />
+          <circle
+             style="fill:#9558b2;fill-opacity:1;stroke-width:0.38157"
+             id="path1-2-6"
+             cx="237.5"
+             cy="153.12292"
+             r="37.5" />
+        </g>
+        <text
+           xml:space="preserve"
+           transform="matrix(6.424272,0,0,6.424272,-3063.5579,-3342.5381)"
+           id="text5"
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:'Fira Code';-inkscape-font-specification:'Fira Code, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;white-space:pre;shape-inside:url(#rect5);fill:#4063d8;fill-opacity:1;stroke:none;stroke-width:3.02362;stroke-dasharray:none;stroke-opacity:1"><tspan
+             x="495.07812"
+             y="548.59394"
+             id="tspan1">=&gt;
+</tspan></text>
+      </g>
+      <g
+         id="g6"
+         style="fill:#4063d8;fill-opacity:1"
+         transform="matrix(0.96877958,0,0,0.96877958,-30.80215,-31.54935)">
+        <text
+           xml:space="preserve"
+           transform="matrix(10.998168,0,0,10.998168,-771.14601,-9823.1147)"
+           id="text6"
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:'Fira Code';-inkscape-font-specification:'Fira Code, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;white-space:pre;shape-inside:url(#rect6);fill:#4063d8;fill-opacity:1;stroke:none;stroke-width:3.02362;stroke-dasharray:none;stroke-opacity:1"><tspan
+             x="66.279297"
+             y="911.54316"
+             id="tspan2">[
+</tspan></text>
+        <text
+           xml:space="preserve"
+           transform="matrix(-10.998168,0,0,10.998168,1047.727,-9823.1147)"
+           id="text6-5"
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:'Fira Code';-inkscape-font-specification:'Fira Code, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;white-space:pre;shape-inside:url(#rect6-5);fill:#4063d8;fill-opacity:1;stroke:none;stroke-width:3.02362;stroke-dasharray:none;stroke-opacity:1"><tspan
+             x="66.279297"
+             y="911.54316"
+             id="tspan3">[
+</tspan></text>
+      </g>
+    </g>
+  </g>
+</svg>

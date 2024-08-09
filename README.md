@@ -1,3 +1,7 @@
+<p align="center">
+<img width="400px" src="./docs/src/assets/logo.svg" title="RuleMiner.jl logo"/>
+</p>
+
 # RuleMiner.jl - Association Rule Mining in Julia
 [![Build Status](https://github.com/JaredSchwartz/RuleMiner.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/JaredSchwartz/RuleMiner.jl/actions/workflows/CI.yml?query=branch%3Amain)
 [![codecov](https://codecov.io/github/JaredSchwartz/RuleMiner.jl/graph/badge.svg?token=KDAVR32F6S)](https://codecov.io/github/JaredSchwartz/RuleMiner.jl)

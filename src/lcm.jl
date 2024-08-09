@@ -42,7 +42,10 @@ Identify closed frequent itemsets in a transactional dataset with the LCM algori
 
 # Description
 LCM is an algorithm that uses a depth-first search pattern with closed-ness checking to return only closed itemsets.
-It utilizes two key pruning techniques to avoid redundant mining: prefix-preserving closure extension and progressive database reduction.
+It utilizes two key pruning techniques to avoid redundant mining: prefix-preserving closure extension (PPCE) and progressive database reduction (PDR).
+
+- PPCE ensures that each branch will never overlap in the itemsets they explore by enforcing the order of the itemsets. This reduces redunant search space.
+- PDR works with PPCE to remove data from a branch's dataset once it is determined to be not nescessary.
 
 # Example
 ```julia

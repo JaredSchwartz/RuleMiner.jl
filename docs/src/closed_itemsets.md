@@ -1,11 +1,11 @@
 # Closed Itemset Mining
 
-![image](./images/Closed.png)
+![Diagram showing maximal itemsets as a subset of closed itemsets which are a subset of frequent itemsets](./assets/closed.png)
 ## Description
 
-Closed itemset mining is a set of techniques focused on discovering closed itemsets in a transactional dataset. A closed itemset is one which appears frequently in the data (above the minimum support threshold) and which has no superset with the same support. In other words, closed itemsets are the largest possible combinations of items that occur in exactly the same transactions. They represent a lossless compression of the set of all frequent itemsets, as the support of any frequent itemset can be derived from the closed itemsets. 
+Closed itemset mining is a set of techniques focused on discovering closed itemsets in a transactional dataset. A closed itemset is one which appears frequently in the data (above the minimum support threshold) and which has no superset with the same support. In other words, closed itemsets are the largest possible combinations of items that share the same transactions. They represent a lossless compression of the set of all frequent itemsets, as the support of any frequent itemset can be derived from the closed itemsets. 
 
-The key advantage of mining closed itemsets is that it provides a compact yet complete representation of all frequent patterns in the data. By identifying only the closed frequent itemsets, the number of patterns generated is significantly reduced compared to mining all frequent itemsets while still retaining all support information. This approach strikes a balance between the compactness of maximal itemsets and the completeness of all frequent itemsets. It is particularly useful in scenarios where both the frequency and the exact composition of itemsets are important, such as in certain types of association rule mining or when analyzing dense datasets.
+The key advantage of mining closed itemsets is that it provides a compact yet complete representation of all frequent patterns in the data. By identifying only the closed frequent itemsets, the number of patterns generated is significantly reduced compared to mining all frequent itemsets while still retaining all support information. This approach strikes a balance between the compactness of maximal itemsets and the completeness of all frequent itemsets. Closed itemset mining is particularly useful in scenarios where both the frequency and the exact composition of itemsets are important, but compression of the results is desired.
 
 ## Formal Definition
 Let:
@@ -37,7 +37,7 @@ CFI = {X \mid X \subseteq I \wedge \sigma(X) \geq \sigma_{min} \wedge \nexists Y
 Closed itemsets can be used to recover all frequent itemsets by generating combinations from the mined itemsets along with their supports. This can be accomplished thorugh the levelwise algorithm proposed by Pasquier et al. in 1999.
 
 
-The `levelwise` function implements the levelwise algorithm for recovering frequent itemsets from closed itemsets. This algorithm generates all subsets of the closed itemsets, derives their supports, and then returns the results. This particular implementation is designed to take a result datafrom from the various closed itemset mining algorithms in this package as its input and thus can only return absolute support (`N`), rather than both relative support and absolute support.
+The `levelwise` function implements the levelwise algorithm for recovering frequent itemsets from closed itemsets. This algorithm generates all subsets of the closed itemsets, derives their supports, and then returns the results. This particular implementation is designed to take an output `DataFrame` from the various closed itemset mining algorithms in this package. Without the original transactions dataset, its input and return values can only handle absolute support (`N`), rather than both relative support and absolute support.
 
 ```@docs
 levelwise(df::DataFrame, min_n::Int)
@@ -45,31 +45,28 @@ levelwise(df::DataFrame, min_n::Int)
 ## Algorithms
 
 ### CHARM
-
-The `charm` function implements the CHARM ([C]losed, [H]ash-based [A]ssociation [R]ule [M]ining) algorithm for mining closed itemsets proposed by Mohammad Zaki and Ching-Jui Hsiao in 2002. This algorithm uses a depth-first search with hash-based approaches to pruning non-closed itemsets and is particularly efficient for dense datasets.
+The `charm` function implements the CHARM ([C]losed, [H]ash-based [A]ssociation [R]ule [M]ining) algorithm for mining closed itemsets proposed by Mohammad Zaki and Ching-Jui Hsiao in 2002. This algorithm uses a depth-first search with hash-based pruning approaches for non-closed itemsets and is particularly efficient for sparse datasets.
 
 ```@docs
 charm(txns::Transactions, min_support::Union{Int,Float64})
 ```
 
 ### FPClose
-The `fpclose` function implements the FPClose ([F]requent [P]attern Close) algorithm for mining closed itemsets. This algorithm, proposed by Gösta Grahne and Jianfei Zhu in 2005, builds on the FP-Growth alogrithm to discover closed itemsets in a dataset without candidate generation.
+The `fpclose` function implements the FPClose ([F]requent [P]attern Close) algorithm for mining closed itemsets. This algorithm, proposed by Gösta Grahne and Jianfei Zhu in 2005, builds on the FP-Growth alogrithm to discover closed itemsets in a dataset without candidate generation. It inherits many of the advantages of FP-Growth when it comes to dense datasets.
 
 ```@docs
 fpclose(txns::Transactions, min_support::Union{Int,Float64})
 ```
+
 ### LCM
-
-The `LCM` function implements the LCM ([L]inear-time [C]losed [M]iner) algorithm for mining frequent closed itemsets first proposed by Uno et al. in 2004. This is an efficient method for discovering closed itemsets in a dataset with a linear time complexity.
-
+The `LCM` function implements the LCM ([L]inear-time [C]losed [M]iner) algorithm for mining frequent closed itemsets first proposed by Uno et al. in 2004. This is an efficient method for discovering closed itemsets in a dataset with a linear time complexity. It is typically faster than other algorithms and has a more balance profile that achieves fast mining on both sparse and dense datasets.
 
 ```@docs
    LCM(txns::Transactions, min_support::Union{Int,Float64})
 ```
 
 ### CARPENTER
-
-The `carpenter` function implements the CARPENTER ([C]losed [P]att[e]r[n] Discovery by [T]ransposing Tabl[e]s that a[r]e Extremely Long) algorithm for mining closed itemsets proposed by Pan et al. in 2003. This algorithm uses a transposed structure to optimize for datasets that have far more items than transactions, such as those found in genetic research and bioinformatics. It may not be the best choice if your data does not fit that format.
+The `carpenter` function implements the CARPENTER ([C]losed [P]att[e]r[n] Discovery by [T]ransposing Tabl[e]s that a[r]e Extremely Long) algorithm for mining closed itemsets proposed by Pan et al. in 2003. This algorithm uses a transposed structure to optimize for datasets that have far more items than transactions, such as those found in genetic research and bioinformatics. It is not well suited to datasets in the more standard transaction-major format.
 
 ```@docs
 carpenter(txns::Transactions, min_support::Union{Int,Float64})

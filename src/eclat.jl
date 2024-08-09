@@ -33,11 +33,9 @@ ECLAT is an efficient algorithm for discovering frequent itemsets, which are set
 that frequently occur together in the dataset.
 
 # Arguments
-- `txns::Transactions`: A `Transactions` object containing the encoded transaction dataset 
-  as a sparse CSC matrix along with row and column name keys.
-- `min_support::Union{Int,Float64}`: The minimum support threshold for the itemsets.
-  - If `Int`: Represents the absolute support (count) of transactions.
-  - If `Float64`: Represents the relative support (percentage) of transactions.
+- `txns::Transactions`: A `Transactions` object containing the dataset to mine.
+- `min_support::Union{Int,Float64}`: The minimum support threshold. If an `Int`, it represents 
+  the absolute support. If a `Float64`, it represents relative support.
 
 # Returns
 A DataFrame containing the discovered frequent itemsets with the following columns:
@@ -48,10 +46,9 @@ A DataFrame containing the discovered frequent itemsets with the following colum
 
 # Algorithm Description
 The ECLAT algorithm uses a depth-first search strategy and a vertical database layout to 
-efficiently mine frequent itemsets. It starts by computing the support of individual items 
-and organizing them in descending order of frequency and then recursively builds larger itemsets
-ECLAT's depth-first approach enables it to quickly identify long frequent itemsets and can be 
-particularly efficient for sparse datasets.
+efficiently mine frequent itemsets. It starts by computing the support of individual items, 
+sorts them in descending order of frequency, and then recursively builds larger itemsets.
+ECLAT's depth-first approach enables it to quickly identify long frequent itemsets, and it is most efficient for sparse datasets
 
 # Example
 ```julia

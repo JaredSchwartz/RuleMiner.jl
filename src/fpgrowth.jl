@@ -285,15 +285,15 @@ Identify frequent itemsets in a transactional dataset with the FPGrowth algorith
   - `Length`: The number of items in the itemset.
 
 # Description
-The FPGrowth algorithm is a mining technique that builds a compart summary fo the transction data called an FP tree. 
-This tree summarizes the supports and relationships between items in a way that can be easily transversed and processed to find frequent itemsets. 
+The FPGrowth algorithm is a mining technique that builds a compact summary of the transction data called an FP tree. 
+This tree structure summarizes the supports and relationships between items in a way that can be easily transversed and processed to find frequent itemsets. 
 FPGrowth is particularly efficient for datasets with long transactions or sparse frequent itemsets.
 
 1. FP-tree Construction: Builds a compact representation of the dataset, organizing items 
    by their frequency to allow efficient mining.
 
 2. Recursive Tree Traversal: 
-   - Processes items in reverse order of frequency.
+   - Processes itemsets from least frequent to most frequent.
    - For each item, creates a conditional FP-tree and recursively mines it.
 
 # Example
@@ -390,7 +390,7 @@ additional pruning techniques to focus on mining closed itemsets. The algorithm 
    by their frequency to allow efficient mining.
 
 2. Recursive Tree Traversal: 
-   - Processes items in reverse order of frequency.
+   - Processes itemsets from least frequent to most frequent.
    - For each item, creates a conditional FP-tree and recursively mines it.
    - Uses a depth-first search strategy, exploring longer itemsets before shorter ones.
    - Employs pruning techniques to avoid generating non-closed itemsets.
@@ -504,7 +504,7 @@ additional pruning techniques to focus on mining maximal itemsets. The algorithm
    by their frequency to allow efficient mining.
 
 2. Recursive Tree Traversal: 
-   - Processes items in reverse order of frequency.
+   - Processes itemsets from least frequent to most frequent.
    - For each item, creates a conditional FP-tree and recursively mines it.
    - Uses a depth-first search strategy, exploring longer itemsets before shorter ones.
    - Employs pruning techniques to avoid generating non-maximal itemsets.
