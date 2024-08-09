@@ -24,8 +24,8 @@ The package currently has support for these algorithms:
 - A Priori[^1]
 
 **Frequent Itemset Mining**
-- ECLAT[^2]
-- FP-Growth[^3]
+- FP-Growth[^2]
+- ECLAT[^3]
 
 **Closed Itemset Mining**
 - FPClose[^4]
@@ -33,6 +33,10 @@ The package currently has support for these algorithms:
 - LCM[^6]
 - CARPENTER[^7]
 - LevelWise[^8] (for recovering frequent itemsets)
+
+**Maximal Itemset Mining**
+- FPMax[^9]
+- GenMax[^10]
 
 ## Installation
 ```
@@ -125,14 +129,14 @@ See [this post](https://julialang.org/blog/2019/07/multithreading/) for more inf
 > Multithreading can be configured for the VScode integrated terminal by setting the `julia.NumThreads` parameter in VScode settings.
 
 ## Future Work
-RuleMiner 0.4.0 is planned to support maximal itemset mining.
+Future versions will support high-utility mining and sequential mining algorithms.
 
 ## References
 [^1]: Agrawal, Rakesh, and Ramakrishnan Srikant. “Fast Algorithms for Mining Association Rules in Large Databases.” In Proceedings of the 20th International Conference on Very Large Data Bases, 487–99. VLDB ’94. San Francisco, CA, USA: Morgan Kaufmann Publishers Inc., 1994.
 
-[^2]: Zaki, Mohammed. “Scalable Algorithms for Association Mining.” Knowledge and Data Engineering, IEEE Transactions On 12 (June 1, 2000): 372–90. https://doi.org/10.1109/69.846291.
+[^2]: Han, Jiawei, Jian Pei, and Yiwen Yin. “Mining Frequent Patterns without Candidate Generation.” SIGMOD Rec. 29, no. 2 (May 16, 2000): 1–12. https://doi.org/10.1145/335191.335372.
 
-[^3]: Han, Jiawei, Jian Pei, and Yiwen Yin. “Mining Frequent Patterns without Candidate Generation.” SIGMOD Rec. 29, no. 2 (May 16, 2000): 1–12. https://doi.org/10.1145/335191.335372.
+[^3]: Zaki, Mohammed. “Scalable Algorithms for Association Mining.” Knowledge and Data Engineering, IEEE Transactions On 12 (June 1, 2000): 372–90. https://doi.org/10.1109/69.846291.
 
 [^4]: Grahne, Gösta, and Jianfei Zhu. “Fast Algorithms for Frequent Itemset Mining Using FP-Trees.” IEEE Transactions on Knowledge and Data Engineering 17, no. 10 (October 2005): 1347–62. https://doi.org/10.1109/TKDE.2005.166.
 
@@ -143,3 +147,7 @@ RuleMiner 0.4.0 is planned to support maximal itemset mining.
 [^7]: Pan, Feng, Gao Cong, Anthony K. H. Tung, Jiong Yang, and Mohammed J. Zaki. “Carpenter: Finding Closed Patterns in Long Biological Datasets.” In Proceedings of the Ninth ACM SIGKDD International Conference on Knowledge Discovery and Data Mining, 637–42. KDD ’03. New York, NY, USA: Association for Computing Machinery, 2003. https://doi.org/10.1145/956750.956832.
 
 [^8]: Pasquier, Nicolas, Yves Bastide, Rafik Taouil, and Lotfi Lakhal. “Efficient Mining of Association Rules Using Closed Itemset Lattices.” Information Systems 24, no. 1 (March 1, 1999): 25–46. https://doi.org/10.1016/S0306-4379(99)00003-4.
+
+[^9]: Grahne and Zhu, “Fast Algorithms for Frequent Itemset Mining Using FP-Trees.”
+
+[^10]: Gouda, Karam, and Mohammed J. Zaki. “GenMax: An Efficient Algorithm for Mining Maximal Frequent Itemsets.” Data Mining and Knowledge Discovery 11, no. 3 (November 1, 2005): 223–42. https://doi.org/10.1007/s10618-005-0002-x.
