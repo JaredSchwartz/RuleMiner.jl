@@ -53,7 +53,7 @@ A DataFrame containing the discovered association rules with the following colum
 - `Coverage`: Coverage (RHS support) of the rule.
 - `Lift`: Lift of the association rule.
 - `N`: Absolute support of the association rule.
-- `Length`: Length of the association rule.
+- `Length`: The number of items in the association rule.
 
 # Description
 
@@ -63,10 +63,8 @@ builds larger itemsets by combining smaller frequent itemsets. At each iteration
 generates candidate itemsets of size k from itemsets of size k-1, then prunes candidates 
 that have any infrequent subset. 
 
-The algorithm uses the downward closure property, which 
-states that any subset of a frequent itemset must also be frequent. This property allows 
-Apriori to efficiently narrow the search space. Once all frequent itemsets up to the 
-specified maximum length are found, the algorithm generates association rules and 
+The algorithm uses the downward closure property, which states that any subset of a frequent itemset must also be frequent. This is the defining pruning technique of A Priori.
+Once all frequent itemsets up to the specified maximum length are found, the algorithm generates association rules and 
 calculates their support, confidence, and other metrics.
 
 # Example

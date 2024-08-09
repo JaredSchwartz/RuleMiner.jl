@@ -42,9 +42,11 @@ A struct representing a collection of transactions in a sparse matrix format.
   This can be used to map matrix rows back to their original transaction IDs or line numbers.
 
 # Constructors
-    Transactions(matrix::SparseMatrixCSC{Bool,Int64}, colkeys::Dict{Int,String}, linekeys::Dict{Int,String})
+```julia
+Transactions(matrix::SparseMatrixCSC{Bool,Int64}, colkeys::Dict{Int,String}, linekeys::Dict{Int,String})
 
-    Transactions(df::DataFrame, indexcol::Union{Symbol,Nothing}=nothing)
+Transactions(df::DataFrame, indexcol::Union{Symbol,Nothing}=nothing)
+```
 
 # Description
 The `Transactions` struct provides an efficient representation of transaction data, 
