@@ -1,6 +1,6 @@
 # Frequent Itemset Mining
 
-![Diagram showing maximal itemsets as a subset of closed itemsets which are a subset of frequent itemsets](./assets/frequent.png)
+![Diagram showing maximal itemsets as a subset of closed itemsets which are a subset of frequent itemsets](assets/frequent.png)
 ## Description
 
 Frequent itemset mining is a fundamental technique in data mining focused on discovering itemsets that appear frequently in a transactional dataset. A frequent itemset is a set of items that occurs together in the data with a frequency no less than a specified minimum support threshold. Frequent itemsets form the basis of various data mining tasks, including association rule mining, sequential pattern mining, and correlation analysis.

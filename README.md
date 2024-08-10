@@ -1,5 +1,5 @@
 <p align="center">
-<img width="400px" src="./docs/src/assets/logo.svg" title="RuleMiner.jl logo"/>
+<img width="400px" src=".github/logo.png" title="RuleMiner.jl logo"/>
 </p>
 
 # RuleMiner.jl - Association Rule Mining in Julia

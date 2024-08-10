@@ -1,6 +1,6 @@
 # Closed Itemset Mining
 
-![Diagram showing maximal itemsets as a subset of closed itemsets which are a subset of frequent itemsets](./assets/closed.png)
+![Diagram showing maximal itemsets as a subset of closed itemsets which are a subset of frequent itemsets](assets/closed.png)
 ## Description
 
 Closed itemset mining is a set of techniques focused on discovering closed itemsets in a transactional dataset. A closed itemset is one which appears frequently in the data (above the minimum support threshold) and which has no superset with the same support. In other words, closed itemsets are the largest possible combinations of items that share the same transactions. They represent a lossless compression of the set of all frequent itemsets, as the support of any frequent itemset can be derived from the closed itemsets. 
