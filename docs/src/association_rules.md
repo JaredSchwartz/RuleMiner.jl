@@ -22,7 +22,7 @@ For a given rule ``A \Rightarrow B``, these measures are defined:
 
 - Support: ``\sigma(A \Rightarrow B) = \frac{|{T_j \in D : A \cup B \subseteq T_j}|}{|D|}``
 - Confidence: ``\chi(A \Rightarrow B) = \frac{\sigma(A \cup B)}{\sigma(A)}``
-- Coverage: ``\gamma(A \Rightarrow B) = \sigma(B) = \frac{|{T_j \in D : B \subseteq T_j}|}{|D|}``
+- Coverage: ``\gamma(A \Rightarrow B) = \sigma(A) = \frac{|{T_j \in D : A \subseteq T_j}|}{|D|}``
 - Lift: ``L(A \Rightarrow B) = \frac{\sigma(A \cup B)}{\sigma(A) \cdot \sigma(B)}``
 
 Let ``\sigma_{min}`` and ``\chi_{min}`` be user-defined minimum thresholds for support and confidence, respectively.
