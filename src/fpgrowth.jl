@@ -23,71 +23,32 @@
 
 export fpgrowth, fpclose, fpmax
 
-abstract type FPNode end
-
 """
 
-    AtomicNode
-
-This is a struct which represents an FP Node with an atomic support field. It is used during the construction of the tree to multithread the insertion of transactions
-
-# Fields
-- `value`: The item index of the node
-- `support`: An atomic integer for storing the support count of the item
-- `children`: A Dict with integer keys representing the item index of the child nodes and Atomic node values representing the child nodes
-- `parent`: An `AtomicNode` object representing the node's parent node
-
-# Examples
-Generate a root node with value -1
-```julia
-node = AtomicNode(-1)
-```
-"""
-mutable struct AtomicNode <: FPNode
-    value::Int
-    support::Atomic{Int}
-    children::Dict{Int, AtomicNode}
-    parent::Union{AtomicNode, Nothing}
-    
-    AtomicNode(value::Int, parent::Union{AtomicNode, Nothing}=nothing) = new(value, Atomic{Int}(0), Dict{Int, AtomicNode}(), parent)
-end
-
-
-"""
-
-    IntNode
+    FPNode
 
 This is a struct which represents an FP Node with an integer support field. It is the final product mining algorithms use to mine patterns.
 
 # Fields
 - `value`: The item index of the node
 - `support`: An integer representing the support count of the node
-- `children`: A Dict with integer keys representing the item index of the child nodes and `IntNode`` values representing the child nodes
-- `parent`: An `IntNode` object representing the node's parent node
+- `children`: A Dict with integer keys representing the item index of the child nodes and `FPNode`` values representing the child nodes
+- `parent`: An `FPNode` object representing the node's parent node
 
 # Examples
 Generate a root node with value -1
 ```julia
-node = IntNode(-1)
+node = FPNode(-1)
 ```
 """
-mutable struct IntNode <: FPNode
+mutable struct FPNode
     value::Int
     support::Int
-    children::Dict{Int, IntNode}
-    parent::Union{IntNode, Nothing}
+    children::Dict{Int, FPNode}
+    parent::Union{FPNode, Nothing}
     
     # Default constructor
-    IntNode(value::Int, parent::Union{IntNode, Nothing}=nothing) = new(value, 0, Dict{Int, IntNode}(), parent)
-
-    # Constructor for converting from AtomicNode
-    function IntNode(anode::AtomicNode, parent::Union{IntNode, Nothing}=nothing)
-        inode = new(anode.value, anode.support[], Dict{Int, IntNode}(), parent)
-        for (item, child) in anode.children
-            inode.children[item] = IntNode(child, inode)
-        end
-        return inode
-    end
+    FPNode(value::Int, parent::Union{FPNode, Nothing}=nothing) = new(value, 0, Dict{Int, FPNode}(), parent)
 end
 
 """
@@ -99,7 +60,6 @@ This is a struct which represents an FP-Tree structure. It also holds a header t
 # Fields
 - `root`: The FPNode that serves as the root of the tree
 - `header_table`: A dict where the keys are the items and the values are a vector of FPNodes representing the item
-- `lock`: A `ReentrantLock` to enable multithreaded construction
 - `col_mapping`: A dictionary mapping the subsetted item indices to the original item indices
 
 # Examples
@@ -111,10 +71,9 @@ tree = FPTree()
 mutable struct FPTree
     root::FPNode
     header_table::Dict{Int, Vector{FPNode}}
-    lock::ReentrantLock
     col_mapping::Dict{Int, Int}
     
-    FPTree() = new(IntNode(-1), Dict{Int, Vector{IntNode}}(), ReentrantLock(), Dict{Int, Int}())
+    FPTree() = new(FPNode(-1), Dict{Int, Vector{FPNode}}(), Dict{Int, Int}())
 end
 
 """
@@ -126,93 +85,78 @@ This is a function which constructs an `FPTree`` object from a `Transactions` ob
 function make_FPTree(txns::Transactions, min_support::Int)::FPTree
     n_transactions = size(txns.matrix, 1)
 
-    # Create a construction tree
-    construction_tree = FPTree()
-    construction_tree.root = AtomicNode(-1)
-
     # Sort and filter items based on support
     col_sums = vec(sum(txns.matrix, dims=1))
-    frequent_cols = findall(col_sums .>= min_support)
-    sorted_cols = sort(frequent_cols, by=i -> col_sums[i], rev=true)
-    colset = sorted_cols[eachindex(sorted_cols)]
+    sorted_cols = sort(findall(>=(min_support), col_sums), by=i -> col_sums[i], rev=true)
 
-    # Populate col_mapping and preallocate header_table
-    construction_tree.col_mapping = Dict{Int, Int}(sorted_idx => original_idx for (sorted_idx, original_idx) in enumerate(sorted_cols))
-    construction_tree.header_table = Dict{Int, Vector{AtomicNode}}(i => AtomicNode[] for i in eachindex(sorted_cols))
+    # Initialize FPTree structure
+    tree = FPTree()
+    tree.root = FPNode(-1)  # Root node with value -1
+    tree.col_mapping = Dict(i => col for (i, col) in enumerate(sorted_cols))
+    tree.header_table = Dict{Int, Vector{FPNode}}()
 
-    function insert_transaction_atomic!(tree::FPTree, transaction::Vector{Int})
-        node = tree.root::AtomicNode
-        for item in transaction
-            # Check if Child exists
-            child = get(node.children, item, nothing)
-            
-            # If not, create it
-            if isnothing(child)
-                child = create_new_child!(tree, node, item)
-            end
-            
-            # Add the support to the child's support
-            atomic_add!(child.support, 1)
-            node = child
-        end
-    end
-    
-    function create_new_child!(tree::FPTree, node::AtomicNode, item::Int)
-        lock(tree.lock) do
-            # Check again in case another thread created the child while waiting for the lock
-            child = get(node.children, item, nothing)
-            !isnothing(child) && return child
-            
-            child = AtomicNode(item, node)
-            node.children[item] = child
-            push!(get!(Vector{AtomicNode}, tree.header_table, item), child)
-            return child
-        end
-    end
+    # Determine chunks for parallel processing
+    min_chunk_size = 50
+    max_chunks = min(nthreads() * 4, cld(n_transactions, min_chunk_size))
+    chunk_size = max(min_chunk_size, cld(n_transactions, max_chunks))
+    n_chunks = min(max_chunks, cld(n_transactions, chunk_size))
 
-    n_chunks = 4 * nthreads()
-    chunk_size = ceil(Int, n_transactions / n_chunks)
-    
+    # Process transactions in parallel
+    local_trees = Vector{FPNode}(undef, n_chunks)
     @sync begin
-        for chunk in 1:n_chunks
+        for (chunk_id, chunk_start) in enumerate(1:chunk_size:n_transactions)
             Threads.@spawn begin
-                start_row = (chunk - 1) * chunk_size + 1
-                end_row = min(chunk * chunk_size, n_transactions)
+                chunk_end = min(chunk_start + chunk_size - 1, n_transactions)
+                local_tree = FPNode(-1)  # Local tree for this chunk
                 
-                for row in start_row:end_row
-                    transaction = findall(txns.matrix[row, colset])
-
-                    # Skip transaction if it is empty
-                    isempty(transaction) && continue
-
-                    insert_transaction_atomic!(construction_tree, transaction)
+                # Process each transaction in the chunk
+                for row in chunk_start:chunk_end
+                    node = local_tree
+                    for (new_idx, col) in enumerate(sorted_cols)
+                        txns.matrix[row, col] || continue
+                        
+                        # Add item to the local tree
+                        child = get(node.children, new_idx, nothing)
+                        if isnothing(child)
+                            child = FPNode(new_idx, node)
+                            node.children[new_idx] = child
+                        end
+                        child.support += 1
+                        node = child
+                    end
                 end
+
+                local_trees[chunk_id] = local_tree
             end
         end
     end
 
-    function convert_to_int_tree!(tree::FPTree)
-        # Convert the root node
-        tree.root = IntNode(tree.root::AtomicNode)
-        
-        # Clear and repopulate the header table
-        empty!(tree.header_table)
-        
-        function populate_header_table!(node::IntNode)
-            # Skip the root node
-            if node.value != -1  
-                push!(get!(Vector{IntNode}, tree.header_table, node.value), node)
-            end
-            for child in values(node.children)
-                populate_header_table!(child)
-            end
-        end
-    
-        populate_header_table!(tree.root)
-        return tree
+    # Merge local trees into the main tree
+    for local_tree in local_trees
+        merge_tree!(tree.root, local_tree, tree.header_table)
     end
-    
-    return convert_to_int_tree!(construction_tree)
+
+    return tree
+end
+
+
+"""
+
+    merge_tree!(main::FPNode, local_node::FPNode, header::Dict{Int, Vector{FPNode}})
+
+Helper function which is used to combine multiple FP Trees.
+"""
+function merge_tree!(main::FPNode, local_node::FPNode, header::Dict{Int, Vector{FPNode}})
+    main.support += local_node.support
+    for (item, local_child) in local_node.children
+        main_child = get!(main.children, item) do
+            # Create new child if it doesn't exist
+            child = FPNode(item, main)
+            push!(get!(Vector{FPNode}, header, item), child)
+            child
+        end
+        merge_tree!(main_child, local_child, header)
+    end
 end
 
 
@@ -230,9 +174,9 @@ function create_conditional_tree(tree::FPTree, item::Int, min_support::Int)::FPT
         node = tree.root
         for item in transaction
             if !haskey(node.children, item)
-                child = IntNode(item, node)
+                child = FPNode(item, node)
                 node.children[item] = child
-                push!(get!(Vector{IntNode}, tree.header_table, item), child)
+                push!(get!(Vector{FPNode}, tree.header_table, item), child)
             else
                 child = node.children[item]
             end
@@ -246,21 +190,17 @@ function create_conditional_tree(tree::FPTree, item::Int, min_support::Int)::FPT
         support = node.support
         current = node.parent
         
-        # Build path directly within this function
         while !isnothing(current) && current.value != -1
             push!(path, current.value)
             current = current.parent
         end
         
         if !isempty(path)
-            reverse!(path)  # Reverse the path to get correct order
-            lock(cond_tree.lock) do
+            reverse!(path)
                 insert_transaction!(cond_tree, path, support)
-            end
         end
     end
     
-    # Prune infrequent items
     filter!(pair -> sum(n.support for n in pair.second) >= min_support, cond_tree.header_table)
     
     return cond_tree
