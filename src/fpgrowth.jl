@@ -101,6 +101,10 @@ function make_FPTree(txns::Transactions, min_support::Int)::FPTree
     chunk_size = max(min_chunk_size, cld(n_transactions, max_chunks))
     n_chunks = min(max_chunks, cld(n_transactions, chunk_size))
 
+    # Pre-allocate fixed-size buffers for each thread
+    buffer_size = length(sorted_cols)
+    thread_buffers = [Vector{Int}(undef, buffer_size) for _ in 1:nthreads()]
+
     # Process transactions in parallel
     local_trees = Vector{FPNode}(undef, n_chunks)
     @sync begin
@@ -108,18 +112,26 @@ function make_FPTree(txns::Transactions, min_support::Int)::FPTree
             Threads.@spawn begin
                 chunk_end = min(chunk_start + chunk_size - 1, n_transactions)
                 local_tree = FPNode(-1)  # Local tree for this chunk
+                buffer = thread_buffers[Threads.threadid()]
                 
                 # Process each transaction in the chunk
                 for row in chunk_start:chunk_end
+                    transaction_size = 0
+                    @inbounds for (new_idx, col) in enumerate(sorted_cols)
+                        if txns.matrix[row, col]
+                            transaction_size += 1
+                            buffer[transaction_size] = new_idx
+                        end
+                    end
+                    
+                    # Insert the transaction into the local tree
                     node = local_tree
-                    for (new_idx, col) in enumerate(sorted_cols)
-                        txns.matrix[row, col] || continue
-                        
-                        # Add item to the local tree
-                        child = get(node.children, new_idx, nothing)
+                    @inbounds for i in 1:transaction_size
+                        item = buffer[i]
+                        child = get(node.children, item, nothing)
                         if isnothing(child)
-                            child = FPNode(new_idx, node)
-                            node.children[new_idx] = child
+                            child = FPNode(item, node)
+                            node.children[item] = child
                         end
                         child.support += 1
                         node = child
@@ -148,14 +160,37 @@ Helper function which is used to combine multiple FP Trees.
 """
 function merge_tree!(main::FPNode, local_node::FPNode, header::Dict{Int, Vector{FPNode}})
     main.support += local_node.support
-    for (item, local_child) in local_node.children
-        main_child = get!(main.children, item) do
-            # Create new child if it doesn't exist
-            child = FPNode(item, main)
-            push!(get!(Vector{FPNode}, header, item), child)
-            child
+
+    function update_header!(header::Dict{Int, Vector{FPNode}}, item::Int, node::FPNode)
+        if haskey(header, item)
+            push!(header[item], node)
+        else
+            header[item] = [node]
         end
-        merge_tree!(main_child, local_child, header)
+    end
+    
+    function update_descendant_headers!(header::Dict{Int, Vector{FPNode}}, node::FPNode)
+        for (item, child) in node.children
+            update_header!(header, item, child)
+            update_descendant_headers!(header, child)
+        end
+    end
+    
+    for (item, local_child) in local_node.children
+        if haskey(main.children, item)
+            # If the child already exists, recursively merge
+            merge_tree!(main.children[item], local_child, header)
+        else
+            # If the child doesn't exist, we can directly attach the local subtree
+            main.children[item] = local_child
+            local_child.parent = main
+            
+            # Update the header table
+            update_header!(header, item, local_child)
+            
+            # Recursively update the header for all descendants
+            update_descendant_headers!(header, local_child)
+        end
     end
 end
 
