@@ -1,15 +1,15 @@
 <p align="center">
-<img width="400px" src=".github/logo.png" title="RuleMiner.jl logo"/>
+<img width="400px" src=".github/logo.png" title="RuleMiner logo"/>
 </p>
 
-# RuleMiner.jl - Association Rule Mining in Julia
+# RuleMiner.jl - Pattern Mining in Julia
 [![Build Status](https://github.com/JaredSchwartz/RuleMiner.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/JaredSchwartz/RuleMiner.jl/actions/workflows/CI.yml?query=branch%3Amain)
 [![codecov](https://codecov.io/github/JaredSchwartz/RuleMiner.jl/graph/badge.svg?token=KDAVR32F6S)](https://codecov.io/github/JaredSchwartz/RuleMiner.jl)
 [![](https://img.shields.io/badge/docs-stable-blue.svg)](https://jaredschwartz.github.io/RuleMiner.jl/stable/)
 [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://jaredschwartz.github.io/RuleMiner.jl/dev/)
 
 ## About
-RuleMiner.jl is a Julia package for association rule and frequent itemset mining inspired by the [arules](https://github.com/mhahsler/arules) R package and [SPMF](https://www.philippe-fournier-viger.com/spmf/) Java library.
+RuleMiner.jl is a Julia package for pattern mining inspired by the [arules](https://github.com/mhahsler/arules) R package and [SPMF](https://www.philippe-fournier-viger.com/spmf/) Java library.
 
 Key features of RuleMiner.jl include:
 
@@ -87,7 +87,7 @@ Result:
 Generate frequent itemsets with a minimum support of 5,000 transactions using _ECLAT_
 
 ```julia
-itemsets = eclat(data, 5000)
+itemsets = eclat(data, 5_000)
 ```
 Result:
 ```
