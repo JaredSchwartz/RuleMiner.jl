@@ -10,65 +10,65 @@ using Test
 
     @testset "Load Files" begin
         @testset "regular load" begin
-            data = load_transactions(joinpath(@__DIR__,"files/data.txt"),',')
+            data = Txns(joinpath(@__DIR__,"files/data.txt"),',')
             @test size(data.matrix) == (9,16)
             @test sum(data.matrix) == 36
-            @test sort(collect(values(data.colkeys))) == item_vals
-            @test sort(collect(values(data.linekeys))) == nonindex_vals
+            @test sort(data.colkeys) == item_vals
+            @test sort(data.linekeys) == nonindex_vals
         end
 
         @testset "line indexes" begin
-            data = load_transactions(joinpath(@__DIR__,"files/data_indexed.txt"),',';id_col = true)
+            data = Txns(joinpath(@__DIR__,"files/data_indexed.txt"),',';id_col = true)
             @test size(data.matrix) == (9,16)
             @test sum(data.matrix) == 36
-            @test sort(collect(values(data.colkeys))) == item_vals
-            @test sort(collect(values(data.linekeys))) == index_vals
+            @test sort(data.colkeys) == item_vals
+            @test sort(data.linekeys) == index_vals
         end
 
         @testset "skip lines" begin
-            data = load_transactions(joinpath(@__DIR__,"files/data_header.txt"),',';skiplines=2)
+            data = Txns(joinpath(@__DIR__,"files/data_header.txt"),',';skiplines=2)
             @test size(data.matrix) == (9,16)
             @test sum(data.matrix) == 36
-            @test sort(collect(values(data.colkeys))) == item_vals
-            @test sort(collect(values(data.linekeys))) == nonindex_vals
+            @test sort(data.colkeys) == item_vals
+            @test sort(data.linekeys) == nonindex_vals
         end
 
         @testset "n lines" begin
-            data = load_transactions(joinpath(@__DIR__,"files/data.txt"),',',nlines = 1)
+            data = Txns(joinpath(@__DIR__,"files/data.txt"),',',nlines = 1)
             @test size(data.matrix) == (1,3)
             @test sum(data.matrix) == 3
-            @test sort(collect(values(data.colkeys))) == ["bread", "eggs", "milk"]
-            @test sort(collect(values(data.linekeys))) == ["1"]
+            @test sort(data.colkeys) == ["bread", "eggs", "milk"]
+            @test sort(data.linekeys) == ["1"]
         end
     end
 
     @testset "convert df" begin
-        data = load_transactions(joinpath(@__DIR__,"files/data.txt"),',')
+        data = Txns(joinpath(@__DIR__,"files/data.txt"),',')
         dftest = txns_to_df(data)
-        data = load_transactions(joinpath(@__DIR__,"files/data_indexed.txt"),',';id_col = true)
+        data = Txns(joinpath(@__DIR__,"files/data_indexed.txt"),',';id_col = true)
         dftest_index =  txns_to_df(data,true)
 
         @testset "without index" begin
-            data = Transactions(dftest)
+            data = Txns(dftest)
             @test size(data.matrix) == (9,16)
             @test sum(data.matrix) == 36
-            @test sort(collect(values(data.colkeys))) == item_vals
-            @test sort(collect(values(data.linekeys))) == nonindex_vals
+            @test sort(data.colkeys) == item_vals
+            @test sort(data.linekeys) == nonindex_vals
         end
 
         @testset "with index" begin
-            data = Transactions(dftest_index,:Index)
+            data = Txns(dftest_index,:Index)
             @test size(data.matrix) == (9,16)
             @test sum(data.matrix) == 36
-            @test sort(collect(values(data.colkeys))) == item_vals
-            @test sort(collect(values(data.linekeys))) == index_vals
+            @test sort(data.colkeys) == item_vals
+            @test sort(data.linekeys) == index_vals
         end
 
     end
 end
 
 # Load Data Once for all Algorithm Tests
-data = load_transactions(joinpath(@__DIR__,"files/data.txt"),',')
+data = Txns(joinpath(@__DIR__,"files/data.txt"),',')
 
 # Define Association Rule results at support of 3/0.3 and rule length of 5
 rule_abs_sup = 3
