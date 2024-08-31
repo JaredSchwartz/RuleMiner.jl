@@ -23,9 +23,9 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - '1' # Most current Stable Release
-          - 'lts' # Most Current LTS Release
-          - 'nightly'
+          - '1'   # Most current stable release
+          - 'lts' # Most current LTS release
+          - 'pre' # Most current preview build
         os:
           - ubuntu-latest
         arch:
