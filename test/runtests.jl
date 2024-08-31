@@ -64,12 +64,21 @@ using Test
                 @test sort(data.linekeys) == index_vals
             end
         end
+        @testset "Default Constructor" begin
+            newstruct = Txns(joinpath(@__DIR__,"files/frequent/data.txt"),',')
+            data = Txns(newstruct.matrix, newstruct.colkeys, newstruct.linekeys)
+            @test size(data.matrix) == (9,16)
+            @test sum(data.matrix) == 36
+            @test sort(data.colkeys) == item_vals
+            @test sort(data.linekeys) == nonindex_vals
+        end
     end
     @testset "Sequential" begin
 
         item_vals = ["bacon", "beer", "bread", "buns", "butter", "cheese", "eggs", "flour", "ham", "hamburger", "hot dogs", "ketchup", "milk", "mustard", "sugar", "turkey"]
         nonindex_vals = ["1", "10", "11", "12", "2", "3", "4", "5", "6", "7", "8", "9"]
         index_vals = ["1111", "1112", "1113", "1114", "1115", "1116", "1117", "1118", "1119","1120", "1121", "1122"]
+        seq_index = UInt.([1, 3, 4, 5, 6, 9, 10, 11])
 
         @testset "Load Files" begin
             @testset "regular load" begin
@@ -78,6 +87,7 @@ using Test
                 @test sum(data.matrix) == 46
                 @test sort(data.colkeys) == item_vals
                 @test sort(data.linekeys) == nonindex_vals
+                @test data.index == seq_index
             end
 
             @testset "line indexes" begin
@@ -86,6 +96,7 @@ using Test
                 @test sum(data.matrix) == 46
                 @test sort(data.colkeys) == item_vals
                 @test sort(data.linekeys) == index_vals
+                @test data.index == seq_index
             end
 
             @testset "skip lines" begin
@@ -94,6 +105,7 @@ using Test
                 @test sum(data.matrix) == 46
                 @test sort(data.colkeys) == item_vals
                 @test sort(data.linekeys) == nonindex_vals
+                @test data.index == seq_index
             end
 
             @testset "n lines" begin
@@ -102,6 +114,7 @@ using Test
                 @test sum(data.matrix) == 7
                 @test sort(data.colkeys) == ["bacon", "bread", "cheese", "eggs", "ham", "milk"]
                 @test sort(data.linekeys) == ["1","2"]
+                @test data.index == UInt.([1,3])
             end
         end
         @testset "convert df" begin
@@ -117,6 +130,7 @@ using Test
                 @test sum(data.matrix) == 46
                 @test sort(data.colkeys) == item_vals
                 @test sort(data.linekeys) == nonindex_vals
+                @test data.index == seq_index
             end
 
             @testset "with index" begin
@@ -125,7 +139,9 @@ using Test
                 @test sum(data.matrix) == 46
                 @test sort(data.colkeys) == item_vals
                 @test sort(data.linekeys) == index_vals
+                @test data.index == seq_index
             end
+            
             @testset "data only" begin
                 data = Txns(dftest_data)
                 @test size(data.matrix) == (12,16)
@@ -133,6 +149,29 @@ using Test
                 @test sort(data.colkeys) == item_vals
                 @test sort(data.linekeys) == nonindex_vals
             end
+        end
+        @testset "Default Constructor" begin
+            newstruct = SeqTxns(joinpath(@__DIR__,"files/sequential/data.txt"),',',';')
+            data = SeqTxns(newstruct.matrix, newstruct.colkeys, newstruct.linekeys, newstruct.index)
+            @test size(data.matrix) == (12,16)
+            @test sum(data.matrix) == 46
+            @test sort(data.colkeys) == item_vals
+            @test sort(data.linekeys) == nonindex_vals
+            @test data.index == seq_index
+        end
+        @testset "getbounds" begin
+            bounds = UInt.([
+                1   2
+                3   3
+                4   4
+                5   5
+                6   8
+                9   9
+                10  10
+                11  12
+            ])
+            data = SeqTxns(joinpath(@__DIR__,"files/sequential/data.txt"),',',';')
+            @test RuleMiner.getbounds(data) == bounds
         end
     end
 end
@@ -225,7 +264,7 @@ end
         @test sets.Length == freq_length
     end
     
-    @testset "asbolute support" begin
+    @testset "absolute support" begin
         sets = eclat(data,freq_abs_sup)
         setsorter!(sets)
         @test sets.Itemset == freq_items
@@ -247,7 +286,7 @@ end
             @test sets.Length == freq_length
         end
         
-        @testset "asbolute support" begin
+        @testset "absolute support" begin
             sets = fpgrowth(data,freq_abs_sup)
             setsorter!(sets)
             @test sets.Itemset == freq_items
@@ -267,7 +306,7 @@ end
             @test sets.Length == closed_length
         end
         
-        @testset "asbolute support" begin
+        @testset "absolute support" begin
             sets = fpclose(data,closed_abs_sup)
             setsorter!(sets)
             @test sets.Itemset == closed_items
@@ -287,7 +326,7 @@ end
             @test sets.Length == max_length
         end
         
-        @testset "asbolute support" begin
+        @testset "absolute support" begin
             sets = fpmax(data,max_abs_sup)
             setsorter!(sets)
             @test sets.Itemset == max_items
@@ -309,7 +348,7 @@ end
         @test sets.Length == closed_length
     end
     
-    @testset "asbolute support" begin
+    @testset "absolute support" begin
         sets = charm(data,closed_abs_sup)
         setsorter!(sets)
         @test sets.Itemset == closed_items
@@ -330,7 +369,7 @@ end
         @test sets.Length == closed_length
     end
     
-    @testset "asbolute support" begin
+    @testset "absolute support" begin
         sets = carpenter(data,closed_abs_sup)
         setsorter!(sets)
         @test sets.Itemset == closed_items
@@ -351,7 +390,7 @@ end
         @test sets.Length == closed_length
     end
     
-    @testset "asbolute support" begin
+    @testset "absolute support" begin
         sets = LCM(data,closed_abs_sup)
         setsorter!(sets)
         @test sets.Itemset == closed_items
@@ -386,7 +425,7 @@ end
         @test sets.Length == max_length
     end
     
-    @testset "asbolute support" begin
+    @testset "absolute support" begin
         sets = genmax(data,max_abs_sup)
         setsorter!(sets)
         @test sets.Itemset == max_items

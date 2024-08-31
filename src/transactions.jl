@@ -162,6 +162,9 @@ struct Txns <: Transactions
             # Break if we've reached the specified number of lines
             nlines != 0 && line_number > nlines && break
 
+            # Skip empty lines
+            isempty(strip(line)) && continue
+
             # Split the line into items
             items = split(line, item_delimiter; keepempty=false)
 
@@ -186,7 +189,6 @@ struct Txns <: Transactions
                 push!(ColumnValues, ItemKey[item])
                 push!(RowValues, line_number)
             end
-
             line_number += 1
         end
 
@@ -218,12 +220,12 @@ A struct representing a collection of transactions in a sparse matrix format, wi
   indicates that the item j is present in transaction i.
 - `colkeys::Vector{String}`: A vector of item names corresponding to matrix columns.
 - `linekeys::Vector{String}`: A vector of transaction identifiers corresponding to matrix rows.
-- `sequence_index::Vector{UInt32}`: A vector of indices indicating the start of each new sequence.
+- `index::Vector{UInt32}`: A vector of indices indicating the start of each new sequence.
   The last sequence ends at the last row of the matrix.
 
 # Constructors
 ```julia
-SeqTxns(matrix::SparseMatrixCSC{Bool,Int64}, colkeys::Vector{String}, linekeys::Vector{String}, sequence_index::Vector{UInt32})
+SeqTxns(matrix::SparseMatrixCSC{Bool,Int64}, colkeys::Vector{String}, linekeys::Vector{String}, index::Vector{UInt32})
 SeqTxns(df::DataFrame, sequence_col::Symbol, index_col::Union{Symbol,Nothing}=nothing)
 SeqTxns(file::String, item_delimiter::Union{Char,String}, set_delimiter::Union{Char,String}; id_col::Bool = false, skiplines::Int = 0, nlines::Int = 0)
 ```
@@ -274,27 +276,27 @@ txns_seq_file = SeqTxns("transactions.txt", ',', ';', id_col=true, skiplines=1)
 item_in_transaction = txns_seq.matrix[2, 1]  # Check if item 1 is in transaction 2
 item_name = txns_seq.colkeys[1]              # Get the name of item 1
 transaction_id = txns_seq.linekeys[2]        # Get the ID of transaction 2
-sequence_starts = txns_seq.sequence_index    # Get the starting indices of each sequence
+sequence_starts = txns_seq.index    # Get the starting indices of each sequence
 
 # Get bounds of a specific sequence (e.g., second sequence)
-seq_start = txns_seq.sequence_index[2]
-seq_end = txns_seq.sequence_index[3] - 1  # Or length(txns_seq.linekeys) if it's the last sequence
+seq_start = txns_seq.index[2]
+seq_end = txns_seq.index[3] - 1  # Or length(txns_seq.linekeys) if it's the last sequence
 ```
 """
 struct SeqTxns <: Transactions
     matrix::SparseMatrixCSC{Bool,Int64}
     colkeys::Vector{String}
     linekeys::Vector{String}
-    sequence_index::Vector{UInt}
+    index::Vector{UInt}
 
     # Constructor
-    function SeqTxns(matrix::SparseMatrixCSC{Bool,Int64}, colkeys::Vector{String}, linekeys::Vector{String}, sequence_index::Vector{UInt32})
+    function SeqTxns(matrix::SparseMatrixCSC{Bool,Int64}, colkeys::Vector{String}, linekeys::Vector{String}, index::Vector{UInt})
         @assert size(matrix, 2) == length(colkeys) "Number of columns in matrix must match length of colkeys"
         @assert size(matrix, 1) == length(linekeys) "Number of rows in matrix must match length of linekeys"
-        @assert issorted(sequence_index) "sequence_index must be sorted"
-        @assert first(sequence_index) == 1 "First series must start at index 1"
-        @assert last(sequence_index) <= length(linekeys) "Last series start must not exceed number of rows"
-        return new(matrix, colkeys, linekeys, sequence_index)
+        @assert issorted(index) "index must be sorted"
+        @assert first(index) == 1 "First series must start at index 1"
+        @assert last(index) <= length(linekeys) "Last series start must not exceed number of rows"
+        return new(matrix, colkeys, linekeys, index)
     end
 
     # Constructor from DataFrame
@@ -309,6 +311,12 @@ struct SeqTxns <: Transactions
             linekeys = string.(1:nrow(df))
         end
 
+        # Create index
+        dfversion = df[1:end-1, :]
+        amts = combine(groupby(dfversion, sequence_col), nrow => :count)[!,:count]
+        rawindex = cumsum(amts).+1
+        index = UInt.(vcat([1],rawindex[1:end-1]))
+
         # Extract sequence column and remove it from the DataFrame
         sequences = df[:, sequence_col]
         select!(df, Not(sequence_col))
@@ -319,15 +327,8 @@ struct SeqTxns <: Transactions
         # Create the sparse matrix
         matrix = SparseMatrixCSC(Bool.(Matrix(df)))
 
-        # Create sequence_index
-        sequence_index = UInt[1]  # First series always starts at 1
-        for i in eachindex(sequences)[2:end]
-            if sequences[i] != sequences[i-1]
-                push!(sequence_index, i)
-            end
-        end
 
-        return new(matrix, colkeys, linekeys, sequence_index)
+        return new(matrix, colkeys, linekeys, index)
     end
 
     # Constructor from file
@@ -370,9 +371,12 @@ struct SeqTxns <: Transactions
             # Break if we've reached the specified number of lines
             nlines != 0 && line_number > nlines && break
             
+            # Skip empty lines
+            isempty(strip(line)) && continue
+
             # Split line into sets
             sets = split(line, set_delimiter; keepempty=false)
-            
+
             for set in sets
                 # Split the set into items
                 items = split(set, item_delimiter; keepempty=false)
@@ -402,11 +406,10 @@ struct SeqTxns <: Transactions
             end
             
             # Store the start index of the next sequence
-            if line_number < estimated_lines
+            if line_number < estimated_lines && !isempty(sets)
                 push!(index, set_number)
             end
-            
-            line_number += 1
+            line_number +=1
         end
         
         # Create the sparse matrix
@@ -492,7 +495,7 @@ A tuple `(start, stop)` where:
 
 # Description
 This function calculates the boundaries (start and stop indices) of a specific sequence
-within a `SeqTxns` object. It uses the `sequence_index` field of the `SeqTxns` struct
+within a `SeqTxns` object. It uses the `index` field of the `SeqTxns` struct
 to determine where each sequence begins and ends.
 
 For any sequence except the last, the stop index is calculated as the start index of the
@@ -515,11 +518,14 @@ for i in start:stop
 end
 ```
 """
-function get_seq_bounds(txns::SeqTxns, seq_index::Int)
-    start = txns.series_starts[seq_index]
-    stop = seq_index < length(txns.series_starts) ? txns.series_starts[seq_index + 1] - 1 : length(txns.linekeys)
-    return (start, stop)
+function getbounds(txns::SeqTxns)
+    starts = copy(txns.index)
+    ends = starts .- 1
+    deleteat!(ends, 1)
+    push!(ends,UInt(length(txns.linekeys)))
+    return hcat(starts,ends)
 end
+
 
 """
     getnames(indexes::Vector{Int}, txns::Transactions) -> Vector{String}
@@ -630,15 +636,15 @@ df = txns_to_df(txns_seq, id_col=true)
 
 ```
 """
-function txns_to_df(txns::SeqTxns, id_col::Bool = false, sequence_index::Bool = true)::DataFrame
+function txns_to_df(txns::SeqTxns, id_col::Bool = false, index::Bool = true)::DataFrame
     # Convert matrix to DataFrame
     df = DataFrame(Int.(Matrix(txns.matrix)), txns.colkeys)
     
-    if sequence_index
+    if index
         # Add SequenceIndex column
         sequence_indices = Vector{Int}(undef, size(txns.matrix, 1))
-        for (seq_idx, start_idx) in enumerate(txns.sequence_index)
-            end_idx = seq_idx < length(txns.sequence_index) ? txns.sequence_index[seq_idx + 1] - 1 : size(txns.matrix, 1)
+        for (seq_idx, start_idx) in enumerate(txns.index)
+            end_idx = seq_idx < length(txns.index) ? txns.index[seq_idx + 1] - 1 : size(txns.matrix, 1)
             sequence_indices[start_idx:end_idx] .= seq_idx
         end
         insertcols!(df, 1, :SequenceIndex => sequence_indices)

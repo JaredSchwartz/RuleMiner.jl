@@ -7,4 +7,3 @@
 1120,milk,sugar,eggs
 1121,hamburger,ketchup,milk,beer
 1122,ham,cheese,bacon,eggs
-
