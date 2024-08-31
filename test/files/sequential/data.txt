@@ -1,0 +1,9 @@
+milk,eggs,bread;ham,cheese,bacon,eggs
+butter,milk,sugar,flour,eggs
+bacon,eggs,milk,beer
+bread,ham,turkey
+cheese,ham,bread,ketchup;bread,ham,turkey;milk,sugar,eggs
+mustard,hot dogs,buns,hamburger,cheese,beer
+milk,sugar,eggs
+hamburger,ketchup,milk,beer
+ham,cheese,bacon,eggs

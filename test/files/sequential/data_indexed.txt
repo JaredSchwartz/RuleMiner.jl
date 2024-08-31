@@ -1,0 +1,9 @@
+1111,milk,eggs,bread;1112,ham,cheese,bacon,eggs
+1113,butter,milk,sugar,flour,eggs
+1114,bacon,eggs,milk,beer
+1115,bread,ham,turkey
+1116,cheese,ham,bread,ketchup;1117,bread,ham,turkey;1118,milk,sugar,eggs
+1119,mustard,hot dogs,buns,hamburger,cheese,beer
+1120,milk,sugar,eggs
+1121,hamburger,ketchup,milk,beer
+1122,ham,cheese,bacon,eggs

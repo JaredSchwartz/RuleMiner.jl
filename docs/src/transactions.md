@@ -1,14 +1,15 @@
 # Transactions Objects
-## Transactions
+## `Txns` (Frequent Transactions)
 ```@docs
-    Transactions
+    Txns
 ```
-## load_transactions
 ```@docs
-load_transactions(file::String, delimiter::Char; id_col::Bool = false, skiplines::Int = 0)
+txns_to_df(txns::Txns, indexcol::Bool = false)
 ```
-
-## txns\_to\_df
+## `SeqTxns` (Sequential Transactions)
 ```@docs
-txns_to_df(txns::Transactions; indexcol::Bool= false)
+    SeqTxns
+```
+```@docs
+    txns_to_df(txns::SeqTxns, id_col::Bool = false, index::Bool = true)
 ```

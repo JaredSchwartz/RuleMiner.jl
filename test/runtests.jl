@@ -3,72 +3,181 @@ using Test
 
 
 @testset "transactions.jl" begin
+    @testset "Frequent" begin
+        item_vals = ["bacon", "beer", "bread", "buns", "butter", "cheese", "eggs", "flour", "ham", "hamburger", "hot dogs", "ketchup", "milk", "mustard", "sugar", "turkey"]
+        nonindex_vals = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
+        index_vals = ["1111", "1112", "1113", "1114", "1115", "1116", "1117", "1118", "1119"]
 
-    item_vals = ["bacon", "beer", "bread", "buns", "butter", "cheese", "eggs", "flour", "ham", "hamburger", "hot dogs", "ketchup", "milk", "mustard", "sugar", "turkey"]
-    nonindex_vals = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
-    index_vals = ["1111", "1112", "1113", "1114", "1115", "1116", "1117", "1118", "1119"]
+        @testset "Load Files" begin
+            @testset "regular load" begin
+                data = Txns(joinpath(@__DIR__,"files/frequent/data.txt"),',')
+                @test size(data.matrix) == (9,16)
+                @test sum(data.matrix) == 36
+                @test sort(data.colkeys) == item_vals
+                @test sort(data.linekeys) == nonindex_vals
+            end
 
-    @testset "Load Files" begin
-        @testset "regular load" begin
-            data = load_transactions(joinpath(@__DIR__,"files/data.txt"),',')
-            @test size(data.matrix) == (9,16)
-            @test sum(data.matrix) == 36
-            @test sort(collect(values(data.colkeys))) == item_vals
-            @test sort(collect(values(data.linekeys))) == nonindex_vals
+            @testset "line indexes" begin
+                data = Txns(joinpath(@__DIR__,"files/frequent/data_indexed.txt"),',';id_col = true)
+                @test size(data.matrix) == (9,16)
+                @test sum(data.matrix) == 36
+                @test sort(data.colkeys) == item_vals
+                @test sort(data.linekeys) == index_vals
+            end
+
+            @testset "skip lines" begin
+                data = Txns(joinpath(@__DIR__,"files/frequent/data_header.txt"),',';skiplines=2)
+                @test size(data.matrix) == (9,16)
+                @test sum(data.matrix) == 36
+                @test sort(data.colkeys) == item_vals
+                @test sort(data.linekeys) == nonindex_vals
+            end
+
+            @testset "n lines" begin
+                data = Txns(joinpath(@__DIR__,"files/frequent/data.txt"),',',nlines = 1)
+                @test size(data.matrix) == (1,3)
+                @test sum(data.matrix) == 3
+                @test sort(data.colkeys) == ["bread", "eggs", "milk"]
+                @test sort(data.linekeys) == ["1"]
+            end
         end
 
-        @testset "line indexes" begin
-            data = load_transactions(joinpath(@__DIR__,"files/data_indexed.txt"),',';id_col = true)
+        @testset "convert df" begin
+            data = Txns(joinpath(@__DIR__,"files/frequent/data.txt"),',')
+            dftest = txns_to_df(data)
+            data = Txns(joinpath(@__DIR__,"files/frequent/data_indexed.txt"),',';id_col = true)
+            dftest_index =  txns_to_df(data,true)
+
+            @testset "without index" begin
+                data = Txns(dftest)
+                @test size(data.matrix) == (9,16)
+                @test sum(data.matrix) == 36
+                @test sort(data.colkeys) == item_vals
+                @test sort(data.linekeys) == nonindex_vals
+            end
+
+            @testset "with index" begin
+                data = Txns(dftest_index,:Index)
+                @test size(data.matrix) == (9,16)
+                @test sum(data.matrix) == 36
+                @test sort(data.colkeys) == item_vals
+                @test sort(data.linekeys) == index_vals
+            end
+        end
+        @testset "Default Constructor" begin
+            newstruct = Txns(joinpath(@__DIR__,"files/frequent/data.txt"),',')
+            data = Txns(newstruct.matrix, newstruct.colkeys, newstruct.linekeys)
             @test size(data.matrix) == (9,16)
             @test sum(data.matrix) == 36
-            @test sort(collect(values(data.colkeys))) == item_vals
-            @test sort(collect(values(data.linekeys))) == index_vals
-        end
-
-        @testset "skip lines" begin
-            data = load_transactions(joinpath(@__DIR__,"files/data_header.txt"),',';skiplines=2)
-            @test size(data.matrix) == (9,16)
-            @test sum(data.matrix) == 36
-            @test sort(collect(values(data.colkeys))) == item_vals
-            @test sort(collect(values(data.linekeys))) == nonindex_vals
-        end
-
-        @testset "n lines" begin
-            data = load_transactions(joinpath(@__DIR__,"files/data.txt"),',',nlines = 1)
-            @test size(data.matrix) == (1,3)
-            @test sum(data.matrix) == 3
-            @test sort(collect(values(data.colkeys))) == ["bread", "eggs", "milk"]
-            @test sort(collect(values(data.linekeys))) == ["1"]
+            @test sort(data.colkeys) == item_vals
+            @test sort(data.linekeys) == nonindex_vals
         end
     end
+    @testset "Sequential" begin
 
-    @testset "convert df" begin
-        data = load_transactions(joinpath(@__DIR__,"files/data.txt"),',')
-        dftest = txns_to_df(data)
-        data = load_transactions(joinpath(@__DIR__,"files/data_indexed.txt"),',';id_col = true)
-        dftest_index =  txns_to_df(data,true)
+        item_vals = ["bacon", "beer", "bread", "buns", "butter", "cheese", "eggs", "flour", "ham", "hamburger", "hot dogs", "ketchup", "milk", "mustard", "sugar", "turkey"]
+        nonindex_vals = ["1", "10", "11", "12", "2", "3", "4", "5", "6", "7", "8", "9"]
+        index_vals = ["1111", "1112", "1113", "1114", "1115", "1116", "1117", "1118", "1119","1120", "1121", "1122"]
+        seq_index = UInt.([1, 3, 4, 5, 6, 9, 10, 11])
 
-        @testset "without index" begin
-            data = Transactions(dftest)
-            @test size(data.matrix) == (9,16)
-            @test sum(data.matrix) == 36
-            @test sort(collect(values(data.colkeys))) == item_vals
-            @test sort(collect(values(data.linekeys))) == nonindex_vals
+        @testset "Load Files" begin
+            @testset "regular load" begin
+                data = SeqTxns(joinpath(@__DIR__,"files/sequential/data.txt"),',',';')
+                @test size(data.matrix) == (12,16)
+                @test sum(data.matrix) == 46
+                @test sort(data.colkeys) == item_vals
+                @test sort(data.linekeys) == nonindex_vals
+                @test data.index == seq_index
+            end
+
+            @testset "line indexes" begin
+                data = SeqTxns(joinpath(@__DIR__,"files/sequential/data_indexed.txt"),',',';';id_col = true)
+                @test size(data.matrix) == (12,16)
+                @test sum(data.matrix) == 46
+                @test sort(data.colkeys) == item_vals
+                @test sort(data.linekeys) == index_vals
+                @test data.index == seq_index
+            end
+
+            @testset "skip lines" begin
+                data = SeqTxns(joinpath(@__DIR__,"files/sequential/data_header.txt"),',',';';skiplines=2)
+                @test size(data.matrix) == (12,16)
+                @test sum(data.matrix) == 46
+                @test sort(data.colkeys) == item_vals
+                @test sort(data.linekeys) == nonindex_vals
+                @test data.index == seq_index
+            end
+
+            @testset "n lines" begin
+                data = SeqTxns(joinpath(@__DIR__,"files/sequential/data.txt"),',',';',nlines = 1)
+                @test size(data.matrix) == (2,6)
+                @test sum(data.matrix) == 7
+                @test sort(data.colkeys) == ["bacon", "bread", "cheese", "eggs", "ham", "milk"]
+                @test sort(data.linekeys) == ["1","2"]
+                @test data.index == UInt.([1,3])
+            end
         end
+        @testset "convert df" begin
+            data = SeqTxns(joinpath(@__DIR__,"files/sequential/data.txt"),',',';')
+            dftest = txns_to_df(data,false,true)
+            data = SeqTxns(joinpath(@__DIR__,"files/sequential/data_indexed.txt"),',',';';id_col = true)
+            dftest_index =  txns_to_df(data,true,true)
+            dftest_data = txns_to_df(data,false,false)
 
-        @testset "with index" begin
-            data = Transactions(dftest_index,:Index)
-            @test size(data.matrix) == (9,16)
-            @test sum(data.matrix) == 36
-            @test sort(collect(values(data.colkeys))) == item_vals
-            @test sort(collect(values(data.linekeys))) == index_vals
+            @testset "without index" begin
+                data = SeqTxns(dftest,:SequenceIndex)
+                @test size(data.matrix) == (12,16)
+                @test sum(data.matrix) == 46
+                @test sort(data.colkeys) == item_vals
+                @test sort(data.linekeys) == nonindex_vals
+                @test data.index == seq_index
+            end
+
+            @testset "with index" begin
+                data = SeqTxns(dftest_index,:SequenceIndex,:Index)
+                @test size(data.matrix) == (12,16)
+                @test sum(data.matrix) == 46
+                @test sort(data.colkeys) == item_vals
+                @test sort(data.linekeys) == index_vals
+                @test data.index == seq_index
+            end
+            
+            @testset "data only" begin
+                data = Txns(dftest_data)
+                @test size(data.matrix) == (12,16)
+                @test sum(data.matrix) == 46
+                @test sort(data.colkeys) == item_vals
+                @test sort(data.linekeys) == nonindex_vals
+            end
         end
-
+        @testset "Default Constructor" begin
+            newstruct = SeqTxns(joinpath(@__DIR__,"files/sequential/data.txt"),',',';')
+            data = SeqTxns(newstruct.matrix, newstruct.colkeys, newstruct.linekeys, newstruct.index)
+            @test size(data.matrix) == (12,16)
+            @test sum(data.matrix) == 46
+            @test sort(data.colkeys) == item_vals
+            @test sort(data.linekeys) == nonindex_vals
+            @test data.index == seq_index
+        end
+        @testset "getbounds" begin
+            bounds = UInt.([
+                1   2
+                3   3
+                4   4
+                5   5
+                6   8
+                9   9
+                10  10
+                11  12
+            ])
+            data = SeqTxns(joinpath(@__DIR__,"files/sequential/data.txt"),',',';')
+            @test RuleMiner.getbounds(data) == bounds
+        end
     end
 end
 
 # Load Data Once for all Algorithm Tests
-data = load_transactions(joinpath(@__DIR__,"files/data.txt"),',')
+data = Txns(joinpath(@__DIR__,"files/frequent/data.txt"),',')
 
 # Define Association Rule results at support of 3/0.3 and rule length of 5
 rule_abs_sup = 3
@@ -155,7 +264,7 @@ end
         @test sets.Length == freq_length
     end
     
-    @testset "asbolute support" begin
+    @testset "absolute support" begin
         sets = eclat(data,freq_abs_sup)
         setsorter!(sets)
         @test sets.Itemset == freq_items
@@ -177,7 +286,7 @@ end
             @test sets.Length == freq_length
         end
         
-        @testset "asbolute support" begin
+        @testset "absolute support" begin
             sets = fpgrowth(data,freq_abs_sup)
             setsorter!(sets)
             @test sets.Itemset == freq_items
@@ -197,7 +306,7 @@ end
             @test sets.Length == closed_length
         end
         
-        @testset "asbolute support" begin
+        @testset "absolute support" begin
             sets = fpclose(data,closed_abs_sup)
             setsorter!(sets)
             @test sets.Itemset == closed_items
@@ -217,7 +326,7 @@ end
             @test sets.Length == max_length
         end
         
-        @testset "asbolute support" begin
+        @testset "absolute support" begin
             sets = fpmax(data,max_abs_sup)
             setsorter!(sets)
             @test sets.Itemset == max_items
@@ -239,7 +348,7 @@ end
         @test sets.Length == closed_length
     end
     
-    @testset "asbolute support" begin
+    @testset "absolute support" begin
         sets = charm(data,closed_abs_sup)
         setsorter!(sets)
         @test sets.Itemset == closed_items
@@ -260,7 +369,7 @@ end
         @test sets.Length == closed_length
     end
     
-    @testset "asbolute support" begin
+    @testset "absolute support" begin
         sets = carpenter(data,closed_abs_sup)
         setsorter!(sets)
         @test sets.Itemset == closed_items
@@ -281,7 +390,7 @@ end
         @test sets.Length == closed_length
     end
     
-    @testset "asbolute support" begin
+    @testset "absolute support" begin
         sets = LCM(data,closed_abs_sup)
         setsorter!(sets)
         @test sets.Itemset == closed_items
@@ -316,7 +425,7 @@ end
         @test sets.Length == max_length
     end
     
-    @testset "asbolute support" begin
+    @testset "absolute support" begin
         sets = genmax(data,max_abs_sup)
         setsorter!(sets)
         @test sets.Itemset == max_items
