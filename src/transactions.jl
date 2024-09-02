@@ -536,12 +536,11 @@ function itemcounter(io::Vector{UInt8}, items::Union{Char, String}...)::Vector{I
                 end
                 if match
                     result[item_indices[target_bytes]] += 1
-                    i += item_length  # Skip the length of the matched item
-                    @goto next_iteration
+                    i += item_length - 1  # Skip the length of the matched item minus 1
+                    break
                 end
             end
             i += 1
-            @label next_iteration
         end
     end
 
