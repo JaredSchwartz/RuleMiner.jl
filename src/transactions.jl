@@ -107,8 +107,8 @@ struct Txns <: Transactions
     # Original constructor
     function Txns(matrix::SparseMatrixCSC{Bool,Int64}, colkeys::Vector{String}, linekeys::Vector{String})
         @assert size(matrix, 2) == length(colkeys) "Number of columns in matrix must match length of colkeys"
-        @assert size(matrix, 1) == length(linekeys) "Number of rows in matrix must match length of linekeys"
-        new(matrix, colkeys, linekeys)
+        @assert size(matrix, 1) == length(linekeys) || isempty(linekeys) "Number of rows in matrix must match length of linekeys or linekeys must be empty"
+        return new(matrix, colkeys, linekeys)
     end
 
     # Constructor from DataFrame
@@ -118,41 +118,39 @@ struct Txns <: Transactions
             linekeys = string.(df[:, indexcol])
             select!(df, Not(indexcol))
         else
-            linekeys = string.(1:nrow(df))
+            linekeys = String[]  # Empty vector when no indexcol is provided
         end
         colkeys = string.(names(df))
         matrix = SparseMatrixCSC(Bool.(Matrix(df)))
-        new(matrix, colkeys, linekeys)
+        return new(matrix, colkeys, linekeys)
     end
 
     # Constructor from file
-    function Txns(file::String, item_delimiter::Union{Char,String}; id_col::Bool = false, skiplines::Int = 0, nlines::Int = 0)
-        
+    function Txns(
+        file::String, item_delimiter::Union{Char,String};
+        id_col::Bool = false, skiplines::Int = 0, nlines::Int = 0,
+    )
         # Ensure skiplines and nlines are positive
-        @assert skiplines >= 0 "skiplines must be a positive integer or zero"
-        @assert nlines >= 0 "nlines must be a positive integer or zero"
-        
+        skiplines < 0 && throw(ArgumentError("skiplines must be a positive integer or zero"))
+        nlines < 0 && throw(ArgumentError("nlines must be a positive integer or zero"))
+    
         # Memory-map the file for efficient reading
         io = Mmap.mmap(file)
-
-        # Estimate the number of lines and items for preallocation
-        estimated_lines = count(==(UInt8('\n')), io) - skiplines
-        estimated_items = count(x -> x in item_delimiter, io) + estimated_lines
-
+        
+        # Estimate counts
+        linecount,itemcount = RuleMiner.itemcounter(io, '\n',item_delimiter)
+        lines = linecount + 1 - skiplines
+        items = itemcount + lines
+    
         # Initialize data structures
-        ItemKey = Dict{String, Int}()   # Maps items to their unique IDs
-        RowKeys = String[]              # Stores transaction identifiers
-        ColumnValues = Int[]            # Stores column indices for sparse matrix
-        RowValues = Int[]               # Stores row indices for sparse matrix
-
-        # Provide size hints to reduce reallocation
-        sizehint!(ItemKey, div(estimated_items, 2))
-        sizehint!(RowKeys, estimated_lines)
-        sizehint!(ColumnValues, estimated_items)
-        sizehint!(RowValues, estimated_items)
-
+        ItemKey = Dict{String, Int}()                               # Maps items to their unique IDs
+        RowKeys = id_col ? Vector{String}(undef, lines) : String[]  # Stores transaction identifiers if id_col is true, otherwise remains empty
+        ColumnValues = Vector{Int}(undef, items)                    # Stores column indices for sparse matrix
+        RowValues = Vector{Int}(undef, items)                       # Stores row indices for sparse matrix
+    
         # Initialize Loop Variables
-        line_number = 1
+        line_number = 1 # counter of lines that are not ignored
+        item_counter = 1
         item_id = 1
 
         for line in eachline(IOBuffer(io))
@@ -165,37 +163,38 @@ struct Txns <: Transactions
             # Skip empty lines
             isempty(strip(line)) && continue
 
-            # Split the line into items
-            items = split(line, item_delimiter; keepempty=false)
-
-            # If there's no ID column, use the line number as the row key
-            !id_col && push!(RowKeys, string(line_number))
-
             # Process each item in the line
-            for (index, item) in enumerate(items)
-                # If there's an ID column, use the first item as the row key
+            for (index, item) in enumerate(eachsplit(line, item_delimiter; keepempty=false))
+                # If id_col is specified, use the first item as the row key
                 if id_col && index == 1
-                    push!(RowKeys, item)
+                    @inbounds RowKeys[line_number] = item
                     continue
                 end
-
-                # Assign a unique ID to each item if it doesn't have one
-                if !haskey(ItemKey, item)
-                    ItemKey[item] = item_id
+    
+                # Get Item's uniqe ID or make one if it doesn't have one avoiding closures because closures cause problems in the loop
+                key = get(ItemKey, item, nothing)
+                if isnothing(key)
+                    key = item_id
+                    ItemKey[item] = key
                     item_id += 1
                 end
 
-                # Record the item's presence in this transaction
-                push!(ColumnValues, ItemKey[item])
-                push!(RowValues, line_number)
+                # Record the item
+                @inbounds ColumnValues[item_counter] = key
+                @inbounds RowValues[item_counter] = line_number
+                item_counter += 1
             end
             line_number += 1
         end
 
+        # Trim any unused space in the vectors
+        resize!(ColumnValues, item_counter - 1)
+        resize!(RowValues, item_counter - 1)
+    
         # Create the sparse matrix
         n = length(ItemKey)  # Number of unique items
         m = line_number - 1  # Number of transactions
-        colptr, rowval = convert_csc!(ColumnValues, RowValues, n)
+        colptr, rowval = RuleMiner.convert_csc!(ColumnValues, RowValues, n)
         nzval = fill(true, length(ColumnValues))
 
         matrix = SparseMatrixCSC(m, n, colptr, rowval, nzval)
@@ -204,7 +203,7 @@ struct Txns <: Transactions
         ColKeys = sort!(collect(keys(ItemKey)), by=k->ItemKey[k])
 
         # Return the Txns struct
-        new(matrix, ColKeys, RowKeys)
+        return new(matrix, ColKeys, RowKeys)
     end
 end
 
@@ -287,15 +286,15 @@ struct SeqTxns <: Transactions
     matrix::SparseMatrixCSC{Bool,Int64}
     colkeys::Vector{String}
     linekeys::Vector{String}
-    index::Vector{UInt}
+    index::Vector{UInt32}
 
     # Constructor
-    function SeqTxns(matrix::SparseMatrixCSC{Bool,Int64}, colkeys::Vector{String}, linekeys::Vector{String}, index::Vector{UInt})
+    function SeqTxns(matrix::SparseMatrixCSC{Bool,Int64}, colkeys::Vector{String}, linekeys::Vector{String}, index::Vector{UInt32})
         @assert size(matrix, 2) == length(colkeys) "Number of columns in matrix must match length of colkeys"
-        @assert size(matrix, 1) == length(linekeys) "Number of rows in matrix must match length of linekeys"
+        @assert size(matrix, 1) == length(linekeys) || isempty(linekeys) "Number of rows in matrix must match length of linekeys or linekeys must be empty"
         @assert issorted(index) "index must be sorted"
         @assert first(index) == 1 "First series must start at index 1"
-        @assert last(index) <= length(linekeys) "Last series start must not exceed number of rows"
+        @assert last(index) <= size(matrix,1) "Last series start must not exceed number of rows"
         return new(matrix, colkeys, linekeys, index)
     end
 
@@ -303,19 +302,18 @@ struct SeqTxns <: Transactions
     function SeqTxns(df::DataFrame, sequence_col::Symbol, index_col::Union{Symbol,Nothing}=nothing)
         df = sort(df, sequence_col)
         
-        # Handle index column
+        # Handle Row Index column
         if !isnothing(index_col)
             linekeys = string.(df[:, index_col])
             select!(df, Not(index_col))
         else
-            linekeys = string.(1:nrow(df))
+            linekeys = String[]
         end
 
-        # Create index
-        dfversion = df[1:end-1, :]
-        amts = combine(groupby(dfversion, sequence_col), nrow => :count)[!,:count]
+        # Handle Sequence Index column
+        amts = combine(groupby(df, sequence_col), nrow => :count)[!,:count]
         rawindex = cumsum(amts).+1
-        index = UInt.(vcat([1],rawindex[1:end-1]))
+        index = UInt32.(vcat([1],rawindex[1:end-1]))
 
         # Extract sequence column and remove it from the DataFrame
         sequences = df[:, sequence_col]
@@ -336,94 +334,91 @@ struct SeqTxns <: Transactions
         file::String, item_delimiter::Union{Char,String}, set_delimiter::Union{Char,String};
         id_col::Bool = false, skiplines::Int = 0, nlines::Int = 0
     )
-        @assert skiplines >= 0 "skiplines must be a positive integer or zero"
-        @assert nlines >= 0 "nlines must be a positive integer or zero"
-        
+        # Ensure skiplines and nlines are positive
+        skiplines < 0 && throw(ArgumentError("skiplines must be a positive integer or zero"))
+        nlines < 0 && throw(ArgumentError("nlines must be a positive integer or zero"))
+
+        # Memory-map the file for efficient reading
         io = Mmap.mmap(file)
         
-        # Estimate the number of lines, sequences and items for preallocation
-        estimated_lines = count(==(UInt8('\n')), io) - skiplines
-        estimated_sets = count(x -> x in set_delimiter, io) + estimated_lines
-        estimated_items = count(x -> x in item_delimiter, io) + estimated_lines + estimated_sets
-        
+        # Estimate counts
+        lines,itemsets,items = RuleMiner.itemcounter(io, '\n', set_delimiter, item_delimiter)
+        lines = lines + 1 - skiplines
+        itemsets = itemsets + lines
+        items = items + itemsets
+
         # Initialize data structures
-        itemkeys = Dict{String, Int}()  # Maps items to their unique IDs
-        rowkeys = String[]              # Stores transaction identifiers
-        colvals = Int[]                 # Stores column indices for sparse matrix
-        rowvals = Int[]                 # Stores row indices for sparse matrix
-        index = UInt[1]                 # Stores the start of each new sequence
-    
-        sizehint!(itemkeys, div(estimated_items, 2))
-        sizehint!(rowkeys, estimated_sets)
-        sizehint!(colvals, estimated_items)
-        sizehint!(rowvals, estimated_items)
-        sizehint!(index, estimated_lines)
-        
+        ItemKey = Dict{String, Int}()                                   # Maps items to their unique IDs
+        RowKeys = id_col ? Vector{String}(undef, itemsets) : String[]   # Stores transaction identifiers if id_col is true, otherwise remains empty
+        ColumnValues = Vector{Int}(undef, items)                        # Stores column indices for sparse matrix
+        RowValues = Vector{Int}(undef, items)                           # Stores row indices for sparse matrix
+        index = Vector{UInt32}(undef, itemsets)                         # Stores the start of each new sequence
+        index[1] = 1
+
         # Initialize Loop Variables
-        line_number = 1
-        set_number = 1
+        line_number = 1 # counter of lines that are not ignored
+        item_counter = 1
         item_id = 1
-        
+        set_number = 1
+
         for line in eachline(IOBuffer(io))
             # Skip lines if necessary
             skiplines > 0 && (skiplines -= 1; continue)
-            
+
             # Break if we've reached the specified number of lines
             nlines != 0 && line_number > nlines && break
             
             # Skip empty lines
             isempty(strip(line)) && continue
+            
+            for set in eachsplit(line, set_delimiter; keepempty=false)
 
-            # Split line into sets
-            sets = split(line, set_delimiter; keepempty=false)
-
-            for set in sets
-                # Split the set into items
-                items = split(set, item_delimiter; keepempty=false)
-                
-                # If there's no ID column, use the set number as the row key
-                !id_col && push!(rowkeys, string(set_number))
-                
-                # Process each item in the set
-                for (index, item) in enumerate(items)
-                    # If there's an ID column, use the first item as the row key
+                # Process each item in the line
+                for (index, item) in enumerate(eachsplit(set, item_delimiter; keepempty=false))
+                    # If id_col is specified, use the first item as the row key
                     if id_col && index == 1
-                        push!(rowkeys, item)
+                        @inbounds RowKeys[set_number] = item
                         continue
                     end
-                    
-                    # Assign a unique ID to each item if it doesn't have one
-                    if !haskey(itemkeys, item)
-                        itemkeys[item] = item_id
+    
+                    # Get Item's uniqe ID or make one if it doesn't have one avoiding closures because closures cause problems in the loop
+                    key = get(ItemKey, item, nothing)
+                    if isnothing(key)
+                        key = item_id
+                        ItemKey[item] = key
                         item_id += 1
                     end
-                    
-                    # Record the item's presence in this transaction
-                    push!(colvals, itemkeys[item])
-                    push!(rowvals, set_number)
+    
+                    # Record the item
+                    @inbounds ColumnValues[item_counter] = key
+                    @inbounds RowValues[item_counter] = set_number
+                    item_counter += 1
                 end
                 set_number += 1
             end
-            
-            # Store the start index of the next sequence
-            if line_number < estimated_lines && !isempty(sets)
-                push!(index, set_number)
-            end
-            line_number +=1
+            line_number += 1
+            @inbounds index[line_number] = set_number
         end
-        
+
+        # Trim any unused space in the vectors
+        resize!(ColumnValues, item_counter - 1)
+        resize!(RowValues, item_counter - 1)
+        resize!(index, line_number -1)
+        id_col && resize!(RowKeys, set_number -1)
+
         # Create the sparse matrix
-        n = length(itemkeys)  # Number of unique items
-        m = set_number - 1    # Number of transactions
-        colptr, rowval = convert_csc!(colvals, rowvals, n)
-        nzval = fill(true, length(colvals))
-        
+        n = length(ItemKey)  # Number of unique items
+        m = set_number - 1  # Number of transactions
+        colptr, rowval = RuleMiner.convert_csc!(ColumnValues, RowValues, n)
+        nzval = fill(true, length(ColumnValues))
+    
         matrix = SparseMatrixCSC(m, n, colptr, rowval, nzval)
-        
+    
         # Create a sorted vector of item names
-        colkeys = sort!(collect(keys(itemkeys)), by=k->itemkeys[k])
-        
-        return new(matrix, colkeys, rowkeys, index)
+        ColKeys = sort!(collect(keys(ItemKey)), by=k->ItemKey[k])
+    
+        # Return the Txns struct
+        return new(matrix, ColKeys, RowKeys, index)
     end
 end
 
@@ -479,51 +474,114 @@ function convert_csc!(column_values, row_values, n_cols)
     return colptr, row_values
 end
 
-"""
-    get_seq_bounds(txns::SeqTxns, seq_index::Int) -> Tuple{UInt32, UInt32}
 
-Get the start and stop indices for a specific sequence in a `SeqTxns` object.
+"""
+    itemcounter(io::Vector{UInt8}, items::Union{Char, String}...)::Vector{Int}
+
+Count occurrences of specified items in a byte array.
 
 # Arguments
-- `txns::SeqTxns`: The `SeqTxns` object containing the transaction data and sequence information.
-- `seq_index::Int`: The index of the sequence for which to retrieve the bounds.
+- `io::Vector{UInt8}`: The input byte array to search through.
+- `items::Union{Char, String}...`: Variable number of items to count. Can be characters or strings.
 
 # Returns
-A tuple `(start, stop)` where:
-- `start::UInt32`: The index of the first transaction in the sequence.
-- `stop::UInt32`: The index of the last transaction in the sequence.
+- `Vector{Int}`: A vector of counts corresponding to each input item, in the order they were provided.
 
 # Description
-This function calculates the boundaries (start and stop indices) of a specific sequence
-within a `SeqTxns` object. It uses the `index` field of the `SeqTxns` struct
-to determine where each sequence begins and ends.
+This function efficiently counts the occurrences of multiple items in a given byte array. 
+It groups items by length for optimized searching and uses a single-pass algorithm to count all items simultaneously.
 
-For any sequence except the last, the stop index is calculated as the start index of the
-next sequence minus one. For the last sequence, the stop index is the total number of
-transactions in the `SeqTxns` object.
+# Features
+- Supports both character and string items.
+- Handles overlapping occurrences by advancing the search position after each match.
+- Groups items by length for more efficient searching.
+- Uses direct byte comparisons for performance.
 
-# Examples
+# Performance Considerations
+- More efficient for larger numbers of search items due to grouping and single-pass approach.
+- May be less efficient for very long individual search items.
+
+# Example
 ```julia
-txns = SeqTxns(...)  # Assume we have a SeqTxns object
-
-# Get bounds of the second sequence
-start, stop = get_seq_bounds(txns, 2)
-println("Sequence 2 starts at index \$start and ends at index \$stop")
-
-# Process all transactions in the third sequence
-start, stop = get_seq_bounds(txns, 3)
-for i in start:stop
-    # Process transaction i
-    # ...
-end
+data = Vector{UInt8}("hello world")
+counts = itemcounter(data, 'l', "o", "ll")
+# Returns [3, 2, 1]
 ```
 """
-function getbounds(txns::SeqTxns)
-    starts = copy(txns.index)
-    ends = starts .- 1
-    deleteat!(ends, 1)
-    push!(ends,UInt(length(txns.linekeys)))
-    return hcat(starts,ends)
+function itemcounter(io::Vector{UInt8}, items::Union{Char, String}...)::Vector{Int}
+    # Group items by length
+    item_groups = Dict{Int, Vector{Vector{UInt8}}}()
+    item_indices = Dict{Vector{UInt8}, Int}()
+
+    for (index, item) in enumerate(items)
+        bytes = item isa String ? Vector{UInt8}(item) : UInt8[item]
+        push!(get!(item_groups, length(bytes), Vector{Vector{UInt8}}()), bytes)
+        item_indices[bytes] = index
+    end
+
+    # Initialize result vector
+    result = zeros(Int, length(items))
+
+    # Iterate through grouped items
+    for (item_length, group) in sort(collect(item_groups))
+        i = 1
+        while i <= length(io) - item_length + 1
+            for target_bytes in group
+                match = true
+                for j in 1:item_length
+                    if io[i+j-1] != target_bytes[j]
+                        match = false
+                        break
+                    end
+                end
+                if match
+                    result[item_indices[target_bytes]] += 1
+                    i += item_length  # Skip the length of the matched item
+                    @goto next_iteration
+                end
+            end
+            i += 1
+            @label next_iteration
+        end
+    end
+
+    return result
+end
+
+
+"""
+    getends(txns::SeqTxns)::Vector{UInt}
+
+Compute the end indices of each sequence in a `SeqTxns` object.
+
+# Arguments
+- `txns::SeqTxns`: A `SeqTxns` object representing sequential transactions.
+
+# Returns
+- `Vector{UInt}`: A vector of unsigned integers where each element represents the end index of a sequence.
+
+# Description
+This function calculates the end indices for each sequence in the given `SeqTxns` object. 
+It uses the `index` field of `SeqTxns`, which stores the starting indices of each sequence, 
+to compute where each transaction ends.
+
+The function works as follows:
+1. For all sequences except the last, the end index is one less than the start index of the next sequence.
+2. For the last sequence, the end index is the total number of items (length of `linekeys`).
+
+# Example
+```julia
+txns = SeqTxns(...)  # Assume we have a SeqTxns object
+end_indices = getends(txns)
+```
+"""
+function getends(txns::SeqTxns)::Vector{UInt32}
+    n = length(txns.index)
+    result = Vector{UInt32}(undef, n)
+    result[1:end-1] .= view(txns.index, 2:n) .- 1
+    result[end] = size(txns.matrix,1)
+    
+    return result
 end
 
 
@@ -554,7 +612,7 @@ item_names = getnames([1, 3], txns)
 println(item_names)  # Output: ["apple", "orange"]
 ```
 """
-function getnames(indexes::Vector{Int}, txns::Transactions)
+function getnames(indexes::Vector{Int}, txns::Transactions)::Vector{String}
     return txns.colkeys[indexes]
 end
 
@@ -566,7 +624,6 @@ Convert a Txns object into a DataFrame.
 
 # Arguments
 - `txns::Txns`: The Txns object to be converted.
-- `id_col::Bool = false`: (Optional) If true, includes an 'Index' column with transaction identifiers.
 
 # Returns
 - `DataFrame`: A DataFrame representation of the transactions.
@@ -589,9 +646,9 @@ in a transaction, and 0 indicates its absence.
 df = txns_to_df(txns, id_col=true)
 ```
 """
-function txns_to_df(txns::Txns, id_col::Bool = false)::DataFrame
+function txns_to_df(txns::Txns)::DataFrame
     df = DataFrame(Int.(Matrix(txns.matrix)), txns.colkeys)
-    if id_col
+    if !isempty(txns.linekeys)
         insertcols!(df, 1, :Index => txns.linekeys)
     end
     return df
@@ -611,7 +668,6 @@ Convert a `SeqTxns` object into a DataFrame, including sequence information.
 - `DataFrame`: A DataFrame representation of the transactions with the following columns:
   - Item columns: One column for each item, with 1 indicating presence and 0 indicating absence.
   - 'SequenceIndex': A column indicating which sequence each transaction belongs to.
-  - 'Index': (Optional) A column with transaction identifiers, if `id_col` is true.
 
 # Description
 This function converts a `SeqTxns` object, which uses a sparse matrix representation with sequence 
@@ -624,11 +680,6 @@ in a transaction, and 0 indicates its absence.
 The 'SequenceIndex' column contains an integer for each row, indicating which sequence the 
 transaction belongs to. Sequences are numbered starting from 1.
 
-# Features
-- Preserves the original item names as column names.
-- Includes a 'SequenceIndex' column to maintain sequence grouping information.
-- Optionally includes an 'Index' column with the original transaction identifiers.
-
 # Example
 ```julia
 # Assuming 'txns_seq' is a pre-existing SeqTxns object
@@ -636,7 +687,7 @@ df = txns_to_df(txns_seq, id_col=true)
 
 ```
 """
-function txns_to_df(txns::SeqTxns, id_col::Bool = false, index::Bool = true)::DataFrame
+function txns_to_df(txns::SeqTxns, index::Bool = true)::DataFrame
     # Convert matrix to DataFrame
     df = DataFrame(Int.(Matrix(txns.matrix)), txns.colkeys)
     
@@ -651,7 +702,7 @@ function txns_to_df(txns::SeqTxns, id_col::Bool = false, index::Bool = true)::Da
     end
 
     # Add Index column if requested
-    if id_col
+    if !isempty(txns.linekeys)
         insertcols!(df, 1, :Index => txns.linekeys)
     end
     

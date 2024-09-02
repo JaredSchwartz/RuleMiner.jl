@@ -5,7 +5,6 @@ using Test
 @testset "transactions.jl" begin
     @testset "Frequent" begin
         item_vals = ["bacon", "beer", "bread", "buns", "butter", "cheese", "eggs", "flour", "ham", "hamburger", "hot dogs", "ketchup", "milk", "mustard", "sugar", "turkey"]
-        nonindex_vals = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
         index_vals = ["1111", "1112", "1113", "1114", "1115", "1116", "1117", "1118", "1119"]
 
         @testset "Load Files" begin
@@ -14,7 +13,7 @@ using Test
                 @test size(data.matrix) == (9,16)
                 @test sum(data.matrix) == 36
                 @test sort(data.colkeys) == item_vals
-                @test sort(data.linekeys) == nonindex_vals
+                @test isempty(data.linekeys)
             end
 
             @testset "line indexes" begin
@@ -30,7 +29,7 @@ using Test
                 @test size(data.matrix) == (9,16)
                 @test sum(data.matrix) == 36
                 @test sort(data.colkeys) == item_vals
-                @test sort(data.linekeys) == nonindex_vals
+                @test isempty(data.linekeys)
             end
 
             @testset "n lines" begin
@@ -38,7 +37,7 @@ using Test
                 @test size(data.matrix) == (1,3)
                 @test sum(data.matrix) == 3
                 @test sort(data.colkeys) == ["bread", "eggs", "milk"]
-                @test sort(data.linekeys) == ["1"]
+                @test isempty(data.linekeys)
             end
         end
 
@@ -46,14 +45,14 @@ using Test
             data = Txns(joinpath(@__DIR__,"files/frequent/data.txt"),',')
             dftest = txns_to_df(data)
             data = Txns(joinpath(@__DIR__,"files/frequent/data_indexed.txt"),',';id_col = true)
-            dftest_index =  txns_to_df(data,true)
+            dftest_index =  txns_to_df(data)
 
             @testset "without index" begin
                 data = Txns(dftest)
                 @test size(data.matrix) == (9,16)
                 @test sum(data.matrix) == 36
                 @test sort(data.colkeys) == item_vals
-                @test sort(data.linekeys) == nonindex_vals
+                @test isempty(data.linekeys)
             end
 
             @testset "with index" begin
@@ -70,15 +69,14 @@ using Test
             @test size(data.matrix) == (9,16)
             @test sum(data.matrix) == 36
             @test sort(data.colkeys) == item_vals
-            @test sort(data.linekeys) == nonindex_vals
+            @test isempty(data.linekeys)
         end
     end
     @testset "Sequential" begin
 
         item_vals = ["bacon", "beer", "bread", "buns", "butter", "cheese", "eggs", "flour", "ham", "hamburger", "hot dogs", "ketchup", "milk", "mustard", "sugar", "turkey"]
-        nonindex_vals = ["1", "10", "11", "12", "2", "3", "4", "5", "6", "7", "8", "9"]
         index_vals = ["1111", "1112", "1113", "1114", "1115", "1116", "1117", "1118", "1119","1120", "1121", "1122"]
-        seq_index = UInt.([1, 3, 4, 5, 6, 9, 10, 11])
+        seq_index = UInt32.([1, 3, 4, 5, 6, 9, 10, 11, 12])
 
         @testset "Load Files" begin
             @testset "regular load" begin
@@ -86,7 +84,7 @@ using Test
                 @test size(data.matrix) == (12,16)
                 @test sum(data.matrix) == 46
                 @test sort(data.colkeys) == item_vals
-                @test sort(data.linekeys) == nonindex_vals
+                @test isempty(data.linekeys)
                 @test data.index == seq_index
             end
 
@@ -104,7 +102,7 @@ using Test
                 @test size(data.matrix) == (12,16)
                 @test sum(data.matrix) == 46
                 @test sort(data.colkeys) == item_vals
-                @test sort(data.linekeys) == nonindex_vals
+                @test isempty(data.linekeys)
                 @test data.index == seq_index
             end
 
@@ -113,23 +111,24 @@ using Test
                 @test size(data.matrix) == (2,6)
                 @test sum(data.matrix) == 7
                 @test sort(data.colkeys) == ["bacon", "bread", "cheese", "eggs", "ham", "milk"]
-                @test sort(data.linekeys) == ["1","2"]
-                @test data.index == UInt.([1,3])
+                @test isempty(data.linekeys)
+                @test data.index == UInt32.([1])
             end
         end
         @testset "convert df" begin
             data = SeqTxns(joinpath(@__DIR__,"files/sequential/data.txt"),',',';')
-            dftest = txns_to_df(data,false,true)
+            dftest = txns_to_df(data,true)
+            dftest_data = txns_to_df(data,false)
             data = SeqTxns(joinpath(@__DIR__,"files/sequential/data_indexed.txt"),',',';';id_col = true)
-            dftest_index =  txns_to_df(data,true,true)
-            dftest_data = txns_to_df(data,false,false)
+            dftest_index =  txns_to_df(data,true)
+            
 
             @testset "without index" begin
                 data = SeqTxns(dftest,:SequenceIndex)
                 @test size(data.matrix) == (12,16)
                 @test sum(data.matrix) == 46
                 @test sort(data.colkeys) == item_vals
-                @test sort(data.linekeys) == nonindex_vals
+                @test isempty(data.linekeys)
                 @test data.index == seq_index
             end
 
@@ -147,7 +146,7 @@ using Test
                 @test size(data.matrix) == (12,16)
                 @test sum(data.matrix) == 46
                 @test sort(data.colkeys) == item_vals
-                @test sort(data.linekeys) == nonindex_vals
+                @test isempty(data.linekeys)
             end
         end
         @testset "Default Constructor" begin
@@ -156,22 +155,13 @@ using Test
             @test size(data.matrix) == (12,16)
             @test sum(data.matrix) == 46
             @test sort(data.colkeys) == item_vals
-            @test sort(data.linekeys) == nonindex_vals
+            @test isempty(data.linekeys)
             @test data.index == seq_index
         end
         @testset "getbounds" begin
-            bounds = UInt.([
-                1   2
-                3   3
-                4   4
-                5   5
-                6   8
-                9   9
-                10  10
-                11  12
-            ])
+            bounds = UInt32.([2, 3, 4, 5, 8, 9, 10, 11, 12])
             data = SeqTxns(joinpath(@__DIR__,"files/sequential/data.txt"),',',';')
-            @test RuleMiner.getbounds(data) == bounds
+            @test RuleMiner.getends(data) == bounds
         end
     end
 end
