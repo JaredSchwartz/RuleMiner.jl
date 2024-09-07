@@ -44,6 +44,7 @@ using Test
         @testset "convert df" begin
             data = Txns(joinpath(@__DIR__,"files/frequent/data.txt"),',')
             dftest = txns_to_df(data)
+            dftest_invalid = insertcols(dftest, :x_column => fill('x', nrow(dftest)))
             data = Txns(joinpath(@__DIR__,"files/frequent/data_indexed.txt"),',';id_col = true)
             dftest_index =  txns_to_df(data)
 
@@ -61,6 +62,10 @@ using Test
                 @test sum(data.matrix) == 36
                 @test sort(data.colkeys) == item_vals
                 @test sort(data.linekeys) == index_vals
+            end
+
+            @testset "invalid" begin
+                @test_throws "Column 'x_column' contains values that cannot be coerced to boolean." Txns(dftest_invalid)
             end
         end
         @testset "Default Constructor" begin
@@ -119,9 +124,9 @@ using Test
             data = SeqTxns(joinpath(@__DIR__,"files/sequential/data.txt"),',',';')
             dftest = txns_to_df(data,true)
             dftest_data = txns_to_df(data,false)
+            dftest_invalid = insertcols(dftest, :x_column => fill('x', nrow(dftest)))
             data = SeqTxns(joinpath(@__DIR__,"files/sequential/data_indexed.txt"),',',';';id_col = true)
             dftest_index =  txns_to_df(data,true)
-            
 
             @testset "without index" begin
                 data = SeqTxns(dftest,:SequenceIndex)
@@ -148,6 +153,11 @@ using Test
                 @test sort(data.colkeys) == item_vals
                 @test isempty(data.linekeys)
             end
+
+            @testset "invalid" begin
+                @test_throws "Column 'x_column' contains values that cannot be coerced to boolean." SeqTxns(dftest_invalid,:SequenceIndex)
+            end
+
         end
         @testset "Default Constructor" begin
             newstruct = SeqTxns(joinpath(@__DIR__,"files/sequential/data.txt"),',',';')

@@ -106,22 +106,35 @@ struct Txns <: Transactions
 
     # Original constructor
     function Txns(matrix::SparseMatrixCSC{Bool,Int64}, colkeys::Vector{String}, linekeys::Vector{String})
-        @assert size(matrix, 2) == length(colkeys) "Number of columns in matrix must match length of colkeys"
-        @assert size(matrix, 1) == length(linekeys) || isempty(linekeys) "Number of rows in matrix must match length of linekeys or linekeys must be empty"
+        size(matrix, 2) == length(colkeys) || throw(ArgumentError("Number of columns in matrix ($(size(matrix, 2))) must match length of colkeys ($(length(colkeys)))"))
+        
+        (isempty(linekeys) || size(matrix, 1) == length(linekeys)) || throw(ArgumentError("Length of linekeys ($(length(linekeys))) must be 0 or match the number of rows in matrix ($(size(matrix, 1)))"))
+        
         return new(matrix, colkeys, linekeys)
     end
 
     # Constructor from DataFrame
-    function Txns(df::DataFrame, indexcol::Union{Symbol,Nothing}=nothing)
+    function Txns(df::DataFrame, index_col::Union{Symbol,Nothing}=nothing)
         df = copy(df)
-        if !isnothing(indexcol)
-            linekeys = string.(df[:, indexcol])
-            select!(df, Not(indexcol))
-        else
-            linekeys = String[]  # Empty vector when no indexcol is provided
+
+        # Handle Row Index column
+        linekeys = String[]
+        if !isnothing(index_col)
+            linekeys = string.(df[:, index_col])
+            select!(df, Not(index_col))  
         end
+
+        for col in names(df)
+            try
+                df = transform(df, col => ByRow(Bool) => col)
+            catch e
+                throw(DomainError("Column '$col' contains values that cannot be coerced to boolean."))
+            end
+        end
+
         colkeys = string.(names(df))
-        matrix = SparseMatrixCSC(Bool.(Matrix(df)))
+        matrix = SparseMatrixCSC((Matrix(df)))
+        
         return new(matrix, colkeys, linekeys)
     end
 
@@ -130,80 +143,63 @@ struct Txns <: Transactions
         file::String, item_delimiter::Union{Char,String};
         id_col::Bool = false, skiplines::Int = 0, nlines::Int = 0,
     )
-        # Ensure skiplines and nlines are positive
-        skiplines < 0 && throw(ArgumentError("skiplines must be a positive integer or zero"))
-        nlines < 0 && throw(ArgumentError("nlines must be a positive integer or zero"))
+        skiplines >= 0 || throw(DomainError(skiplines, "skiplines must be a non-negative integer"))
+        nlines >= 0 || throw(DomainError(nlines, "nlines must be a non-negative integer"))
     
-        # Memory-map the file for efficient reading
         io = Mmap.mmap(file)
-        
-        # Estimate counts
-        linecount,itemcount = RuleMiner.itemcounter(io, '\n',item_delimiter)
-        lines = linecount + 1 - skiplines
-        items = itemcount + lines
+
+        est_lines, est_items = RuleMiner.delimcounter(io, '\n', item_delimiter)
+
+        est_lines = est_lines + 1 - skiplines   # Est. lines is one more than num of line delims minus any skipped
+        est_items = est_items + est_lines       # Line delims also act as item delims
     
-        # Initialize data structures
-        ItemKey = Dict{String, Int}()                               # Maps items to their unique IDs
-        RowKeys = id_col ? Vector{String}(undef, lines) : String[]  # Stores transaction identifiers if id_col is true, otherwise remains empty
-        ColumnValues = Vector{Int}(undef, items)                    # Stores column indices for sparse matrix
-        RowValues = Vector{Int}(undef, items)                       # Stores row indices for sparse matrix
+        item_map = Dict{String, Int}()
+        rowkeys = id_col ? Vector{String}(undef, est_lines) : String[]
+        colvals = Vector{Int}(undef, est_items)
+        rowvals = Vector{Int}(undef, est_items)
     
-        # Initialize Loop Variables
-        line_number = 1 # counter of lines that are not ignored
-        item_counter = 1
-        item_id = 1
+        line_counter = 0
+        item_counter = 0
+        item_id = 0
 
         for line in eachline(IOBuffer(io))
-            # Skip lines if necessary
-            skiplines > 0 && (skiplines -= 1; continue)
+            skiplines > 0 && (skiplines -= 1; continue)     # Skip supplied number of lines at beginning
+            nlines != 0 && line_counter >= nlines && break  # Break if we've reached the specified number of lines
+            isempty(strip(line)) && continue                # Skip empty lines
 
-            # Break if we've reached the specified number of lines
-            nlines != 0 && line_number > nlines && break
-
-            # Skip empty lines
-            isempty(strip(line)) && continue
-
-            # Process each item in the line
+            line_counter += 1            
             for (index, item) in enumerate(eachsplit(line, item_delimiter; keepempty=false))
-                # If id_col is specified, use the first item as the row key
                 if id_col && index == 1
-                    @inbounds RowKeys[line_number] = item
+                    @inbounds rowkeys[line_counter] = item
                     continue
                 end
+                item_counter += 1
     
-                # Get Item's uniqe ID or make one if it doesn't have one avoiding closures because closures cause problems in the loop
-                key = get(ItemKey, item, nothing)
+                # avoided get!()do...end block because the closure causes serious performance issues
+                key = get(item_map, item, nothing)
                 if isnothing(key)
-                    key = item_id
-                    ItemKey[item] = key
                     item_id += 1
+                    key = item_id
+                    item_map[item] = key
                 end
 
-                # Record the item
-                @inbounds ColumnValues[item_counter] = key
-                @inbounds RowValues[item_counter] = line_number
-                item_counter += 1
+                @inbounds colvals[item_counter] = key
+                @inbounds rowvals[item_counter] = line_counter
             end
-            line_number += 1
         end
 
-        # Trim any unused space in the vectors
-        resize!(ColumnValues, item_counter - 1)
-        resize!(RowValues, item_counter - 1)
-    
-        # Create the sparse matrix
-        n = length(ItemKey)  # Number of unique items
-        m = line_number - 1  # Number of transactions
-        colptr, rowval = RuleMiner.convert_csc!(ColumnValues, RowValues, n)
-        nzval = fill(true, length(ColumnValues))
+        resize!(colvals, item_counter)
+        resize!(rowvals, item_counter)
+
+        n = item_id
+        m = line_counter
+        colptr, rowval = RuleMiner.convert_csc!(colvals, rowvals, n)
+        nzval = fill(true, item_counter)
 
         matrix = SparseMatrixCSC(m, n, colptr, rowval, nzval)
+        ColKeys = sort!(collect(keys(item_map)), by=k->item_map[k])
 
-        # Create a sorted vector of item names
-        ColKeys = sort!(collect(keys(ItemKey)), by=k->ItemKey[k])
-
-        # Return the Txns struct
-        return new(matrix, ColKeys, RowKeys)
+        return new(matrix, ColKeys, rowkeys)
     end
 end
 
@@ -290,11 +286,16 @@ struct SeqTxns <: Transactions
 
     # Constructor
     function SeqTxns(matrix::SparseMatrixCSC{Bool,Int64}, colkeys::Vector{String}, linekeys::Vector{String}, index::Vector{UInt32})
-        @assert size(matrix, 2) == length(colkeys) "Number of columns in matrix must match length of colkeys"
-        @assert size(matrix, 1) == length(linekeys) || isempty(linekeys) "Number of rows in matrix must match length of linekeys or linekeys must be empty"
-        @assert issorted(index) "index must be sorted"
-        @assert first(index) == 1 "First series must start at index 1"
-        @assert last(index) <= size(matrix,1) "Last series start must not exceed number of rows"
+        size(matrix, 2) == length(colkeys) || throw(ArgumentError("Number of columns in matrix ($(size(matrix, 2))) must match length of colkeys ($(length(colkeys)))"))
+        
+        (isempty(linekeys) || size(matrix, 1) == length(linekeys)) || throw(ArgumentError("Length of linekeys ($(length(linekeys))) must be 0 or match the number of rows in matrix ($(size(matrix, 1)))"))
+        
+        issorted(index) || throw(ArgumentError("index must be sorted"))
+        
+        first(index) == 1 || throw(DomainError(first(index), "First series must start at index 1"))
+        
+        last(index) <= size(matrix,1) || throw(DomainError(last(index), "Last series start must not exceed number of rows ($(size(matrix,1)))"))
+        
         return new(matrix, colkeys, linekeys, index)
     end
 
@@ -303,122 +304,107 @@ struct SeqTxns <: Transactions
         df = sort(df, sequence_col)
         
         # Handle Row Index column
+        linekeys = String[]
         if !isnothing(index_col)
             linekeys = string.(df[:, index_col])
-            select!(df, Not(index_col))
-        else
-            linekeys = String[]
+            select!(df, Not(index_col))  
         end
 
         # Handle Sequence Index column
         amts = combine(groupby(df, sequence_col), nrow => :count)[!,:count]
         rawindex = cumsum(amts).+1
         index = UInt32.(vcat([1],rawindex[1:end-1]))
-
-        # Extract sequence column and remove it from the DataFrame
-        sequences = df[:, sequence_col]
         select!(df, Not(sequence_col))
 
-        # Get column names (excluding sequence and index columns)
+        for col in names(df)
+            try
+                df = transform(df, col => ByRow(Bool) => col)
+            catch e
+                throw(DomainError("Column '$col' contains values that cannot be coerced to boolean."))
+            end
+        end
+
         colkeys = string.(names(df))
-
-        # Create the sparse matrix
-        matrix = SparseMatrixCSC(Bool.(Matrix(df)))
-
+        matrix = SparseMatrixCSC((Matrix(df)))
 
         return new(matrix, colkeys, linekeys, index)
     end
 
     # Constructor from file
     function SeqTxns(
-        file::String, item_delimiter::Union{Char,String}, set_delimiter::Union{Char,String};
-        id_col::Bool = false, skiplines::Int = 0, nlines::Int = 0
+        file::String, 
+        item_delimiter::Union{Char,String}, 
+        set_delimiter::Union{Char,String};
+        id_col::Bool = false, 
+        skiplines::Int = 0, 
+        nlines::Int = 0
     )
-        # Ensure skiplines and nlines are positive
-        skiplines < 0 && throw(ArgumentError("skiplines must be a positive integer or zero"))
-        nlines < 0 && throw(ArgumentError("nlines must be a positive integer or zero"))
-
-        # Memory-map the file for efficient reading
+        skiplines >= 0 || throw(DomainError(skiplines, "skiplines must be a non-negative integer"))
+        nlines >= 0 || throw(DomainError(nlines, "nlines must be a non-negative integer"))
+    
         io = Mmap.mmap(file)
         
-        # Estimate counts
-        lines,itemsets,items = RuleMiner.itemcounter(io, '\n', set_delimiter, item_delimiter)
-        lines = lines + 1 - skiplines
-        itemsets = itemsets + lines
-        items = items + itemsets
-
-        # Initialize data structures
-        ItemKey = Dict{String, Int}()                                   # Maps items to their unique IDs
-        RowKeys = id_col ? Vector{String}(undef, itemsets) : String[]   # Stores transaction identifiers if id_col is true, otherwise remains empty
-        ColumnValues = Vector{Int}(undef, items)                        # Stores column indices for sparse matrix
-        RowValues = Vector{Int}(undef, items)                           # Stores row indices for sparse matrix
-        index = Vector{UInt32}(undef, itemsets)                         # Stores the start of each new sequence
+        est_lines, est_sets, est_items = RuleMiner.delimcounter(io, '\n', set_delimiter, item_delimiter)
+        est_lines = est_lines + 1 - skiplines   # Est. lines is one more than num of line delims minus any skipped
+        est_sets = est_sets + est_lines         # Line delims also act as set delims
+        est_items = est_items + est_sets        # Set delims also act as item delims
+    
+        item_map = Dict{String, Int}()
+        rowkeys = id_col ? Vector{String}(undef, est_sets) : String[]
+        colvals = Vector{Int}(undef, est_items)
+        rowvals = Vector{Int}(undef, est_items)
+        index = Vector{UInt32}(undef, est_sets)
         index[1] = 1
-
-        # Initialize Loop Variables
-        line_number = 1 # counter of lines that are not ignored
-        item_counter = 1
-        item_id = 1
-        set_number = 1
-
+    
+        line_counter = 0
+        set_counter = 0
+        item_counter = 0
+        item_id = 0
+    
         for line in eachline(IOBuffer(io))
-            # Skip lines if necessary
-            skiplines > 0 && (skiplines -= 1; continue)
-
-            # Break if we've reached the specified number of lines
-            nlines != 0 && line_number > nlines && break
+            skiplines > 0 && (skiplines -= 1; continue)     # Skip supplied number of lines at beginning
+            nlines != 0 && line_counter >= nlines && break  # Break if we've reached the specified number of lines
+            isempty(strip(line)) && continue                # Skip empty lines
             
-            # Skip empty lines
-            isempty(strip(line)) && continue
-            
+            line_counter += 1
             for set in eachsplit(line, set_delimiter; keepempty=false)
-
-                # Process each item in the line
+                set_counter += 1
                 for (index, item) in enumerate(eachsplit(set, item_delimiter; keepempty=false))
-                    # If id_col is specified, use the first item as the row key
                     if id_col && index == 1
-                        @inbounds RowKeys[set_number] = item
+                        @inbounds rowkeys[set_counter] = item
                         continue
                     end
-    
-                    # Get Item's uniqe ID or make one if it doesn't have one avoiding closures because closures cause problems in the loop
-                    key = get(ItemKey, item, nothing)
-                    if isnothing(key)
-                        key = item_id
-                        ItemKey[item] = key
-                        item_id += 1
-                    end
-    
-                    # Record the item
-                    @inbounds ColumnValues[item_counter] = key
-                    @inbounds RowValues[item_counter] = set_number
                     item_counter += 1
+
+                    # avoided get!()do...end block because the closure causes serious performance issues
+                    key = get(item_map, item, nothing)
+                    if isnothing(key)
+                        item_id += 1
+                        key = item_id
+                        item_map[item] = key
+                    end
+                    
+                    @inbounds colvals[item_counter] = key
+                    @inbounds rowvals[item_counter] = set_counter
                 end
-                set_number += 1
             end
-            line_number += 1
-            @inbounds index[line_number] = set_number
+            @inbounds index[line_counter + 1] = set_counter + 1
         end
-
-        # Trim any unused space in the vectors
-        resize!(ColumnValues, item_counter - 1)
-        resize!(RowValues, item_counter - 1)
-        resize!(index, line_number -1)
-        id_col && resize!(RowKeys, set_number -1)
-
-        # Create the sparse matrix
-        n = length(ItemKey)  # Number of unique items
-        m = set_number - 1  # Number of transactions
-        colptr, rowval = RuleMiner.convert_csc!(ColumnValues, RowValues, n)
-        nzval = fill(true, length(ColumnValues))
     
+        resize!(colvals, item_counter)
+        resize!(rowvals, item_counter)
+        resize!(index, line_counter)
+        id_col && resize!(rowkeys, set_counter)
+
+        n = item_id 
+        m = set_counter
+        colptr, rowval = RuleMiner.convert_csc!(colvals, rowvals, n)
+        nzval = fill(true, item_counter)
+        
         matrix = SparseMatrixCSC(m, n, colptr, rowval, nzval)
-    
-        # Create a sorted vector of item names
-        ColKeys = sort!(collect(keys(ItemKey)), by=k->ItemKey[k])
-    
-        # Return the Txns struct
-        return new(matrix, ColKeys, RowKeys, index)
+        colkeys = sort!(collect(keys(item_map)), by=k->item_map[k])
+        
+        return new(matrix, colkeys, rowkeys, index)
     end
 end
 
@@ -476,30 +462,26 @@ end
 
 
 """
-    itemcounter(io::Vector{UInt8}, items::Union{Char, String}...)::Vector{Int}
+    delimcounter(io::Vector{UInt8}, items::Union{Char, String}...)::Vector{Int}
 
-Count occurrences of specified items in a byte array.
+Count occurrences of delimiters in a byte array.
 
 # Arguments
 - `io::Vector{UInt8}`: The input byte array to search through.
-- `items::Union{Char, String}...`: Variable number of items to count. Can be characters or strings.
+- `items::Union{Char, String}...`: One or many delimiters to count. Can be characters or strings.
 
 # Returns
-- `Vector{Int}`: A vector of counts corresponding to each input item, in the order they were provided.
+- `Vector{Int}`: A vector of counts corresponding to each input delimiter, in the order they were provided.
 
 # Description
-This function efficiently counts the occurrences of multiple items in a given byte array. 
-It groups items by length for optimized searching and uses a single-pass algorithm to count all items simultaneously.
+This function efficiently counts the occurrences of multiple delimiters in a given byte array. 
+It groups delimiters by length for optimized searching and makes n passes through the array where n is is the number of distinct delimiter lengths.
 
 # Features
 - Supports both character and string items.
 - Handles overlapping occurrences by advancing the search position after each match.
 - Groups items by length for more efficient searching.
 - Uses direct byte comparisons for performance.
-
-# Performance Considerations
-- More efficient for larger numbers of search items due to grouping and single-pass approach.
-- May be less efficient for very long individual search items.
 
 # Example
 ```julia
@@ -508,7 +490,7 @@ counts = itemcounter(data, 'l', "o", "ll")
 # Returns [3, 2, 1]
 ```
 """
-function itemcounter(io::Vector{UInt8}, items::Union{Char, String}...)::Vector{Int}
+function delimcounter(io::Vector{UInt8}, items::Union{Char, String}...)::Vector{Int}
     # Group items by length
     item_groups = Dict{Int, Vector{Vector{UInt8}}}()
     item_indices = Dict{Vector{UInt8}, Int}()
@@ -536,7 +518,7 @@ function itemcounter(io::Vector{UInt8}, items::Union{Char, String}...)::Vector{I
                 end
                 if match
                     result[item_indices[target_bytes]] += 1
-                    i += item_length - 1  # Skip the length of the matched item minus 1
+                    i += item_length - 1
                     break
                 end
             end
