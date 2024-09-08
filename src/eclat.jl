@@ -86,10 +86,10 @@ function eclat(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
     end
 
     # Define recursive eclat function and run it on the data
-    function eclat!(lineage::Vector{Int}, items::Vector{Int}, trans::SparseMatrixCSC{Bool, Int}, min_support::Int)
+    function eclat!(lineage::Vector{Int}, items::Vector{Int}, trans::Transactions, min_support::Int)
         for (i, item) in enumerate(items)
             new_lineage = vcat(lineage, item)
-            support = sum(all(trans[:, new_lineage], dims=2))
+            support = sum(all(trans.matrix[:, new_lineage], dims=2))
     
             # Skip this itemset if it does not meet minimum suppot
             support < min_support && continue
@@ -112,7 +112,7 @@ function eclat(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
 
     @sync begin
         for (i, item) in enumerate(sorted_items)
-            Threads.@spawn eclat!([item], sorted_items[i+1:end], txns.matrix, min_support)
+            Threads.@spawn eclat!([item], sorted_items[i+1:end], txns, min_support)
         end
     end
     

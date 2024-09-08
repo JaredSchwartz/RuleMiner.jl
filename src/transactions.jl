@@ -100,12 +100,12 @@ transaction_id = txns.linekeys[2]        # Get the ID of transaction 2
 ```
 """
 struct Txns <: Transactions
-    matrix::SparseMatrixCSC{Bool,Int64}
+    matrix::SparseMatrixCSC{Bool,UInt32}
     colkeys::Vector{String}
     linekeys::Vector{String}
 
     # Original constructor
-    function Txns(matrix::SparseMatrixCSC{Bool,Int64}, colkeys::Vector{String}, linekeys::Vector{String})
+    function Txns(matrix::SparseMatrixCSC{Bool,UInt32}, colkeys::Vector{String}, linekeys::Vector{String})
         size(matrix, 2) == length(colkeys) || throw(ArgumentError("Number of columns in matrix ($(size(matrix, 2))) must match length of colkeys ($(length(colkeys)))"))
         
         (isempty(linekeys) || size(matrix, 1) == length(linekeys)) || throw(ArgumentError("Length of linekeys ($(length(linekeys))) must be 0 or match the number of rows in matrix ($(size(matrix, 1)))"))
@@ -153,10 +153,10 @@ struct Txns <: Transactions
         est_lines = est_lines + 1 - skiplines   # Est. lines is one more than num of line delims minus any skipped
         est_items = est_items + est_lines       # Line delims also act as item delims
     
-        item_map = Dict{String, Int}()
+        item_map = Dict{String, UInt32}()
         rowkeys = id_col ? Vector{String}(undef, est_lines) : String[]
-        colvals = Vector{Int}(undef, est_items)
-        rowvals = Vector{Int}(undef, est_items)
+        colvals = Vector{UInt32}(undef, est_items)
+        rowvals = Vector{UInt32}(undef, est_items)
     
         line_counter = 0
         item_counter = 0
@@ -349,10 +349,10 @@ struct SeqTxns <: Transactions
         est_sets = est_sets + est_lines         # Line delims also act as set delims
         est_items = est_items + est_sets        # Set delims also act as item delims
     
-        item_map = Dict{String, Int}()
+        item_map = Dict{String, UInt32}()
         rowkeys = id_col ? Vector{String}(undef, est_sets) : String[]
-        colvals = Vector{Int}(undef, est_items)
-        rowvals = Vector{Int}(undef, est_items)
+        colvals = Vector{UInt32}(undef, est_items)
+        rowvals = Vector{UInt32}(undef, est_items)
         index = Vector{UInt32}(undef, est_sets)
         index[1] = 1
     
@@ -438,7 +438,7 @@ The caller is responsible for ensuring this precondition.
 colptr, rowval = convert_csc!([1,2,1,3], [1,2,3,1], 3)
 ```
 """
-function convert_csc!(column_values, row_values, n_cols)
+function convert_csc!(column_values::Vector{UInt32}, row_values::Vector{UInt32}, n_cols::Integer)
     
     # Sort both arrays based on column values
     p = sortperm(column_values)
@@ -446,7 +446,7 @@ function convert_csc!(column_values, row_values, n_cols)
     permute!(row_values, p)
     
     # Initialize colptr
-    colptr = zeros(Int, n_cols + 1)
+    colptr = zeros(UInt32, n_cols + 1)
     colptr[1] = 1
     
     # Fill colptr
@@ -455,7 +455,7 @@ function convert_csc!(column_values, row_values, n_cols)
     end
     
     # Convert counts to cumulative sum
-    cumsum!(colptr,colptr)
+    cumsum!(colptr, colptr)
     
     return colptr, row_values
 end
