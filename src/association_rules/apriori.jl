@@ -21,8 +21,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-export apriori
-
 struct Arule
     lhs::Vector{Int} # Vector containing the integer indices of the left-hand side of the rule
     rhs::Int # Integer index of the right-hand side of the rule
