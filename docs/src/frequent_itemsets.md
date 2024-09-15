@@ -45,3 +45,22 @@ The `fpgrowth` function implements the FP-Growth ([F]requent [P]attern Growth) a
 ```@docs
 fpgrowth(txns::Transactions, min_support::Union{Int,Float64})
 ```
+## Frequent Itemset Recovery
+
+### Recover from closed itemsets
+Closed itemsets can be used to recover all frequent itemsets by generating combinations from the mined itemsets along with their supports. This can be accomplished thorugh the levelwise algorithm proposed by Pasquier et al. in 1999.
+
+The `recover_closed` function implements the levelwise algorithm for recovering frequent itemsets from closed itemsets. This algorithm generates all subsets of the closed itemsets, derives their supports, and then returns the results. This particular implementation is designed to take an output `DataFrame` from the various closed itemset mining algorithms in this package. Without the original transactions dataset, its input and return values can only handle absolute support (`N`), rather than both relative support and absolute support.
+
+```@docs
+recover_closed(df::DataFrame, min_n::Int)
+```
+
+### Recover from maximal itemsets
+Like closed itemsets, maximal itemsets can be used to recover all frequent itemsets, however unlike with closed itemsets, the supports of the itemsets cannot be recovered.
+
+The `recover_maximal` performs this recovery by finding all subsets of the maximal itemsets and returns a `DataFrame` of the itemset and length.
+
+```@docs
+recover_maximal(df::DataFrame)
+```

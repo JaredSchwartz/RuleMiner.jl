@@ -31,17 +31,6 @@ Thus, ``CFI``, the set of all closed frequent itemsets in ``I``, can be expresse
 ```math
 CFI = {X \mid X \subseteq I \wedge \sigma(X) \geq \sigma_{min} \wedge \nexists Y \supset X : \sigma(Y) = \sigma(X)}
 ```
-
-## Frequent Itemset Recovery
-
-Closed itemsets can be used to recover all frequent itemsets by generating combinations from the mined itemsets along with their supports. This can be accomplished thorugh the levelwise algorithm proposed by Pasquier et al. in 1999.
-
-
-The `levelwise` function implements the levelwise algorithm for recovering frequent itemsets from closed itemsets. This algorithm generates all subsets of the closed itemsets, derives their supports, and then returns the results. This particular implementation is designed to take an output `DataFrame` from the various closed itemset mining algorithms in this package. Without the original transactions dataset, its input and return values can only handle absolute support (`N`), rather than both relative support and absolute support.
-
-```@docs
-levelwise(df::DataFrame, min_n::Int)
-```
 ## Algorithms
 
 ### CHARM

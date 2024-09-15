@@ -60,11 +60,12 @@ export apriori
 #============Frequent Itemset Mining=============#
 include("itemsets/frequent/eclat.jl")
 include("itemsets/frequent/fpgrowth.jl")
-include("itemsets/frequent/levelwise.jl")
+include("itemsets/frequent/recovery.jl")
 
 export eclat
 export fpgrowth
-export levelwise
+export recover_closed
+export recover_maximal
 
 #=============Closed Itemset Mining==============#
 include("itemsets/closed/charm.jl")
