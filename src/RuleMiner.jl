@@ -48,6 +48,7 @@ export txns_to_df
 include("data_structures/fptree.jl")
 include("data_structures/fputils.jl")
 
+export FPNode
 export FPTree
 
 #=============Assocition Rule Mining=============#

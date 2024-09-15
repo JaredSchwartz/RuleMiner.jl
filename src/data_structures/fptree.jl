@@ -23,21 +23,57 @@ SOFTWARE.
 =#
 
 """
-
     FPNode
 
-This is a struct which represents an FP Node with an integer support field. It is the final product mining algorithms use to mine patterns.
+A mutable struct representing a node in an FP-tree (Frequent Pattern Tree) structure.
 
 # Fields
-- `value`: The item index of the node
-- `support`: An integer representing the support count of the node
-- `children`: A Dict with integer keys representing the item index of the child nodes and `FPNode`` values representing the child nodes
-- `parent`: An `FPNode` object representing the node's parent node
+- `value::Int`: The item index this node represents. For the root node, this is typically -1.
+- `support::Int`: The number of transactions that contain this item in the path from the root to this node.
+- `children::Dict{Int, FPNode}`: A dictionary of child nodes, where keys are item indices and values are `FPNode` objects.
+- `parent::Union{FPNode, Nothing}`: The parent node in the FP-tree. For the root node, this is `nothing`.
+
+# Description
+`FPNode` is the fundamental building block of an FP-tree. Each node represents an item in the dataset 
+and keeps track of how many transactions contain the path from the root to this item. The tree structure 
+allows for efficient mining of frequent patterns without repeated database scans.
+
+The `children` dictionary allows for quick access to child nodes, facilitating efficient tree traversal.
+The `parent` reference enables bottom-up traversal, which is crucial for some frequent pattern mining algorithms.
+
+# Constructor
+    FPNode(value::Int, parent::Union{FPNode, Nothing}=nothing)
+
 
 # Examples
-Generate a root node with value -1
 ```julia
-node = FPNode(-1)
+# Create a root node
+root = FPNode(-1)
+
+# Create child nodes
+child1 = FPNode(1, root)
+child2 = FPNode(2, root)
+
+# Add children to the root
+root.children[1] = child1
+root.children[2] = child2
+
+# Increase support of a node
+child1.support += 1
+
+# Create a grandchild node
+grandchild = FPNode(3, child1)
+child1.children[3] = grandchild
+
+# Traverse the tree
+function print_tree(node::FPNode, depth::Int = 0)
+    println(" "^depth, "Item: ", node.value, ", Support: ", node.support)
+    for child in values(node.children)
+        print_tree(child, depth + 2)
+    end
+end
+
+print_tree(root)
 ```
 """
 mutable struct FPNode
@@ -51,21 +87,73 @@ mutable struct FPNode
 end
 
 """
-
     FPTree
 
-This is a struct which represents an FP-Tree structure. It also holds a header table of nodes to enable faster calculations.
+A struct representing an FP-Tree (Frequent Pattern Tree) structure, used for efficient frequent itemset mining.
 
 # Fields
-- `root`: The FPNode that serves as the root of the tree
-- `header_table`: A dict where the keys are the items and the values are a vector of FPNodes representing the item
-- `col_mapping`: A dictionary mapping the subsetted item indices to the original item indices
+- `root::FPNode`: The root node of the FP-Tree.
+- `header_table::Dict{Int, Vector{FPNode}}`: A dictionary where keys are item indices and values are vectors of FPNodes representing the item occurrences in the tree.
+- `col_mapping::Dict{Int, Int}`: A dictionary mapping the condensed item indices to the original item indices.
+- `min_support::Int`: The minimum support threshold used to construct the tree.
+- `n_transactions::Int`: The total number of transactions used to build the tree.
+- `colkeys::Vector{String}`: The original item names corresponding to the column indices.
+
+# Constructors
+```julia
+# Default Constructor
+FPTree()
+
+# Transaction Constructor
+FPTree(txns::Transactions, min_support::Union{Int,Float64})
+```
+
+# Description
+The FP-Tree is a compact representation of transaction data, designed for efficient frequent pattern mining. 
+It stores frequent items in a tree structure, with shared prefixes allowing for memory-efficient storage and fast traversal.
+
+The tree construction process involves:
+1. Counting item frequencies and filtering out infrequent items.
+2. Sorting items by frequency.
+3. Inserting transactions into the tree, with items ordered by their frequency.
+
+The `header_table` provides quick access to all occurrences of an item in the tree, facilitating efficient mining operations.
 
 # Examples
-Initialize a tree with a root node with the item value -1
 ```julia
-tree = FPTree()
+# Create an empty FP-Tree
+empty_tree = FPTree()
+
+# Create an FP-Tree from a Transactions object
+txns = load_transactions("transactions.txt", ' ')
+tree = FPTree(txns, 0.05)  # Using 5% minimum support
+
+# Access tree properties
+println("Minimum support: ", tree.min_support)
+println("Number of transactions: ", tree.n_transactions)
+println("Number of unique items: ", length(tree.header_table))
+
+# Traverse the tree (example)
+function traverse(node::FPNode, prefix::Vector{String}=String[])
+    if node.value != -1
+        println(join(vcat(prefix, tree.colkeys[node.value]), " -> "))
+    end
+    for child in values(node.children)
+        traverse(child, vcat(prefix, node.value != -1 ? [tree.colkeys[node.value]] : String[]))
+    end
+end
+
+traverse(tree.root)
 ```
+
+# Notes
+- The FP-Tree structure is particularly useful for algorithms like FP-Growth, FP-Close, and FP-Max.
+- When constructing from a Transactions object, items not meeting the minimum support threshold are excluded from the tree.
+- The tree construction process is parallelized for efficiency on multi-core systems.
+
+# References
+Han, J., Pei, J., & Yin, Y. (2000). Mining Frequent Patterns without Candidate Generation. 
+In proceedings of the 2000 ACM SIGMOD International Conference on Management of Data (pp. 1-12).
 """
 mutable struct FPTree
     root::FPNode

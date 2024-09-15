@@ -23,12 +23,13 @@ SOFTWARE.
 =#
 
 """
-    fpmax(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
+    fpmax(data::Union{Transactions,FPTree}, min_support::Union{Int,Float64})::DataFrame
 
-Identify maximal frequent itemsets in a transactional dataset with the FPMax algorithm.
+Identify maximal frequent itemsets in a transactional dataset or an FP-tree with the FPMax algorithm.
 
 # Arguments
-- `txns::Transactions`: A `Transactions` object containing the dataset to mine.
+- `data::Union{Transactions,FPTree}`: Either a `Transactions` object containing the dataset to mine,
+  or a pre-constructed `FPTree` object.
 - `min_support::Union{Int,Float64}`: The minimum support threshold. If an `Int`, it represents 
   the absolute support. If a `Float64`, it represents relative support.
 
@@ -40,11 +41,11 @@ Identify maximal frequent itemsets in a transactional dataset with the FPMax alg
   - `Length`: The number of items in the itemset.
 
 # Description
-The FPMax algorithm is an extension of FP-Growth with 
-additional pruning techniques to focus on mining maximal itemsets. The algorithm operates in three main phases:
+The FPMax algorithm is an extension of FP-Growth with additional pruning techniques 
+to focus on mining maximal itemsets. The algorithm operates in three main phases:
 
 1. FP-tree Construction: Builds a compact representation of the dataset, organizing items 
-   by their frequency to allow efficient mining.
+   by their frequency to allow efficient mining. This step is skipped if an FPTree is provided.
 
 2. Recursive Tree Traversal: 
    - Processes itemsets from least frequent to most frequent.
@@ -62,16 +63,18 @@ find all frequent itemsets.
 
 # Example
 ```julia
+# Using a Transactions object
 txns = load_transactions("transactions.txt", ' ')
+result = fpmax(txns, 0.05)  # Find maximal frequent itemsets with 5% minimum support
 
-# Find maximal frequent itemsets with 5% minimum support
-result = fpmax(txns, 0.05)
-
-# Find maximal frequent itemsets with minimum 5,000 transactions
-result = fpmax(txns, 5_000)
+# Using a pre-constructed FPTree
+tree = FPTree(txns, 5000)  # Construct FP-tree with minimum support of 5000
+result = fpmax(tree, 6000)  # Find maximal frequent itemsets with minimum support of 6000
 ```
 # References
-Grahne, Gösta, and Jianfei Zhu. “Fast Algorithms for Frequent Itemset Mining Using FP-Trees.” IEEE Transactions on Knowledge and Data Engineering 17, no. 10 (October 2005): 1347–62. https://doi.org/10.1109/TKDE.2005.166.
+Grahne, Gösta, and Jianfei Zhu. "Fast Algorithms for Frequent Itemset Mining Using FP-Trees." 
+IEEE Transactions on Knowledge and Data Engineering 17, no. 10 (October 2005): 1347–62. 
+https://doi.org/10.1109/TKDE.2005.166.
 """
 function fpmax(data::Union{Transactions,FPTree}, min_support::Union{Int,Float64})::DataFrame
     n_transactions = data.n_transactions

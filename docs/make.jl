@@ -15,6 +15,7 @@ makedocs(
             "Maximal Itemset Mining" => "maximal_itemsets.md",
         ],
         "Transactions Objects" => "transactions.md",
+        "FP Tree Objects" => "fptree.md"
     ],
     warnonly = [:missing_docs, :cross_references],
 )
