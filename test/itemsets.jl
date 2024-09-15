@@ -53,19 +53,28 @@ end
             @test sets.Length == freq_length
         end
     end
-    @testset "levelwise.jl" begin
-        closed_sets = LCM(data,2)
-        sets = levelwise(closed_sets,2)
-        remainder = subset(sets, :N => (x -> x .< freq_abs_sup))
-        subset!(sets, :N => (x -> x .>= freq_abs_sup))
-        setsorter!(sets)
-        setsorter!(remainder)
-        @test sets.Itemset == freq_items
-        @test sets.N == freq_N
-        @test sets.Length == freq_length
-        @test remainder.Itemset == [["bacon"], ["hamburger"], ["ketchup"], ["sugar"], ["bacon", "eggs"], ["beer", "hamburger"], ["beer", "milk"], ["bread", "ham"], ["cheese", "ham"], ["eggs", "sugar"], ["milk", "sugar"], ["eggs", "milk", "sugar"]]
-        @test remainder.N == [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
-        @test remainder.Length == [1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 3]
+    @testset "recovery.jl" begin
+        @testset "recover_closed" begin
+            closed_sets = LCM(data,2)
+            sets = recover_closed(closed_sets,2)
+            remainder = subset(sets, :N => (x -> x .< freq_abs_sup))
+            subset!(sets, :N => (x -> x .>= freq_abs_sup))
+            setsorter!(sets)
+            setsorter!(remainder)
+            @test sets.Itemset == freq_items
+            @test sets.N == freq_N
+            @test sets.Length == freq_length
+            @test remainder.Itemset == [["bacon"], ["hamburger"], ["ketchup"], ["sugar"], ["bacon", "eggs"], ["beer", "hamburger"], ["beer", "milk"], ["bread", "ham"], ["cheese", "ham"], ["eggs", "sugar"], ["milk", "sugar"], ["eggs", "milk", "sugar"]]
+            @test remainder.N == [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
+            @test remainder.Length == [1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 3]
+        end
+        @testset "recover_maximal" begin
+            maximal_sets = genmax(data,freq_perc_sup)
+            sets = recover_maximal(maximal_sets)
+            setsorter!(sets)
+            @test sets.Itemset == freq_items
+            @test sets.Length == freq_length
+        end
     end
 end
 
