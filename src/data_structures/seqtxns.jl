@@ -35,13 +35,7 @@ A struct representing a collection of transactions in a sparse matrix format, wi
 - `linekeys::Vector{String}`: A vector of transaction identifiers corresponding to matrix rows.
 - `index::Vector{UInt32}`: A vector of indices indicating the start of each new sequence.
   The last sequence ends at the last row of the matrix.
-
-# Constructors
-```julia
-SeqTxns(matrix::SparseMatrixCSC{Bool,Int64}, colkeys::Vector{String}, linekeys::Vector{String}, index::Vector{UInt32})
-SeqTxns(df::DataFrame, sequence_col::Symbol, index_col::Union{Symbol,Nothing}=nothing)
-SeqTxns(file::String, item_delimiter::Union{Char,String}, set_delimiter::Union{Char,String}; id_col::Bool = false, skiplines::Int = 0, nlines::Int = 0)
-```
+- `n_transactions::Int`: The total number of transactions in the dataset.
 
 # Description
 The `SeqTxns` struct extends the concept of transaction data to include sequence information.
@@ -53,14 +47,26 @@ The sparse matrix representation allows for efficient storage and computation,
 especially when dealing with datasets where each transaction contains only a small 
 subset of all possible items.
 
-# DataFrame Constructor
+# Constructors
+## Default Constructor
+```julia
+SeqTxns(matrix::SparseMatrixCSC{Bool,Int64}, colkeys::Vector{String}, linekeys::Vector{String}, index::Vector{UInt32})
+```
+
+## DataFrame Constructor
+```julia
+SeqTxns(df::DataFrame, sequence_col::Symbol, index_col::Union{Symbol,Nothing}=nothing)
+```
 The DataFrame constructor allows direct creation of a `SeqTxns` object from a DataFrame:
 - `df`: Input DataFrame where each row is a transaction and each column is an item.
 - `sequence_col`: Specifies the column used to determine sequence groupings.
 - `index_col`: Optional. Specifies a column to use as transaction identifiers. 
    If not provided, row numbers are used as identifiers.
 
-# File Constructor
+## File Constructor
+```julia
+SeqTxns(file::String, item_delimiter::Union{Char,String}, set_delimiter::Union{Char,String}; id_col::Bool = false, skiplines::Int = 0, nlines::Int = 0)
+```
 The file constructor allows creation of a `SeqTxns` object directly from a file:
 - `file`: Path to the input file containing transaction data.
 - `item_delimiter`: Character or string used to separate items within a transaction.
@@ -90,6 +96,7 @@ item_in_transaction = txns_seq.matrix[2, 1]  # Check if item 1 is in transaction
 item_name = txns_seq.colkeys[1]              # Get the name of item 1
 transaction_id = txns_seq.linekeys[2]        # Get the ID of transaction 2
 sequence_starts = txns_seq.index             # Get the starting indices of each sequence
+total_transactions = txns.n_transactions # Get the total number of transactions
 
 # Get bounds of a specific sequence (e.g., second sequence)
 seq_start = txns_seq.index[2]
@@ -101,6 +108,7 @@ struct SeqTxns <: Transactions
     colkeys::Vector{String}
     linekeys::Vector{String}
     index::Vector{UInt32}
+    n_transactions::Int
 
     # Constructor
     function SeqTxns(matrix::SparseMatrixCSC{Bool,UInt32}, colkeys::Vector{String}, linekeys::Vector{String}, index::Vector{UInt32})
@@ -114,7 +122,7 @@ struct SeqTxns <: Transactions
         
         last(index) <= size(matrix,1) || throw(DomainError(last(index), "Last series start must not exceed number of rows ($(size(matrix,1)))"))
         
-        return new(matrix, colkeys, linekeys, index)
+        return new(matrix, colkeys, linekeys, index, size(matrix,1))
     end
 
     # Constructor from DataFrame
@@ -145,7 +153,7 @@ struct SeqTxns <: Transactions
         colkeys = string.(names(df))
         matrix = SparseMatrixCSC((Matrix(df)))
 
-        return new(matrix, colkeys, linekeys, index)
+        return new(matrix, colkeys, linekeys, index, size(matrix,1))
     end
 
     # Constructor from file
@@ -222,6 +230,6 @@ struct SeqTxns <: Transactions
         matrix = SparseMatrixCSC(m, n, colptr, rowval, nzval)
         colkeys = sort!(collect(keys(item_map)), by=k->item_map[k])
         
-        return new(matrix, colkeys, rowkeys, index)
+        return new(matrix, colkeys, rowkeys, index, m)
     end
 end

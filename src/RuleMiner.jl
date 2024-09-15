@@ -45,9 +45,11 @@ export Transactions
 export txns_to_df
 
 #=================FPTree Objects=================#
+include("data_structures/fpnode.jl")
 include("data_structures/fptree.jl")
 include("data_structures/fputils.jl")
 
+export FPNode
 export FPTree
 
 #=============Assocition Rule Mining=============#

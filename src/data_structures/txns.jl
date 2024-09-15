@@ -33,6 +33,7 @@ A struct representing a collection of transactions in a sparse matrix format.
   indicates that the item j is present in transaction i.
 - `colkeys::Vector{String}`: A vector of item names corresponding to matrix columns.
 - `linekeys::Vector{String}`: A vector of transaction identifiers corresponding to matrix rows.
+- `n_transactions::Int`: The total number of transactions in the dataset.
 
 # Description
 The `Txns` struct provides an efficient representation of transaction data, 
@@ -44,19 +45,23 @@ especially when dealing with datasets where each transaction contains only a sma
 subset of all possible items.
 
 # Constructors
+## Default Constructor
 ```julia
 Txns(matrix::SparseMatrixCSC{Bool,Int64}, colkeys::Vector{String}, linekeys::Vector{String})
-Txns(df::DataFrame, indexcol::Union{Symbol,Nothing}=nothing)
-Txns(file::String, delimiter::Union{Char,String}; id_col::Bool = false, skiplines::Int = 0, nlines::Int = 0)
 ```
-
 ## DataFrame Constructor
+```julia
+Txns(df::DataFrame, indexcol::Union{Symbol,Nothing}=nothing)
+```
 The DataFrame constructor allows direct creation of a `Txns` object from a DataFrame:
 - `df`: Input DataFrame where each row is a transaction and each column is an item.
 - `indexcol`: Optional. Specifies a column to use as transaction identifiers. 
    If not provided, row numbers are used as identifiers.
 
 ## File Constructor
+```julia
+Txns(file::String, delimiter::Union{Char,String}; id_col::Bool = false, skiplines::Int = 0, nlines::Int = 0)
+```
 The file constructor allows creation of a `Txns` object directly from a file:
 - `file`: Path to the input file containing transaction data.
 - `delimiter`: Character or string used to separate items in each transaction.
@@ -92,12 +97,14 @@ txns_from_file_string = Txns("transactions.txt", "||", id_col=true, skiplines=1)
 item_in_transaction = txns.matrix[2, 1]  # Check if item 1 is in transaction 2
 item_name = txns.colkeys[1]              # Get the name of item 1
 transaction_id = txns.linekeys[2]        # Get the ID of transaction 2
+total_transactions = txns.n_transactions # Get the total number of transactions
 ```
 """
 struct Txns <: Transactions
     matrix::SparseMatrixCSC{Bool,UInt32}
     colkeys::Vector{String}
     linekeys::Vector{String}
+    n_transactions::Int
 
     # Original constructor
     function Txns(matrix::SparseMatrixCSC{Bool,UInt32}, colkeys::Vector{String}, linekeys::Vector{String})
@@ -105,7 +112,7 @@ struct Txns <: Transactions
         
         (isempty(linekeys) || size(matrix, 1) == length(linekeys)) || throw(ArgumentError("Length of linekeys ($(length(linekeys))) must be 0 or match the number of rows in matrix ($(size(matrix, 1)))"))
         
-        return new(matrix, colkeys, linekeys)
+        return new(matrix, colkeys, linekeys, size(matrix, 1))
     end
 
     # Constructor from DataFrame
@@ -130,7 +137,7 @@ struct Txns <: Transactions
         colkeys = string.(names(df))
         matrix = SparseMatrixCSC((Matrix(df)))
         
-        return new(matrix, colkeys, linekeys)
+        return new(matrix, colkeys, linekeys,size(matrix,1))
     end
 
     # Constructor from file
@@ -194,6 +201,6 @@ struct Txns <: Transactions
         matrix = SparseMatrixCSC(m, n, colptr, rowval, nzval)
         ColKeys = sort!(collect(keys(item_map)), by=k->item_map[k])
 
-        return new(matrix, ColKeys, rowkeys)
+        return new(matrix, ColKeys, rowkeys, m)
     end
 end
