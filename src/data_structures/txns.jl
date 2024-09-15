@@ -46,17 +46,22 @@ subset of all possible items.
 
 # Constructors
 ## Default Constructor
-    Txns(matrix::SparseMatrixCSC{Bool,Int64}, colkeys::Vector{String}, linekeys::Vector{String})
-
+```julia
+Txns(matrix::SparseMatrixCSC{Bool,Int64}, colkeys::Vector{String}, linekeys::Vector{String})
+```
 ## DataFrame Constructor
-    Txns(df::DataFrame, indexcol::Union{Symbol,Nothing}=nothing)
+```julia
+Txns(df::DataFrame, indexcol::Union{Symbol,Nothing}=nothing)
+```
 The DataFrame constructor allows direct creation of a `Txns` object from a DataFrame:
 - `df`: Input DataFrame where each row is a transaction and each column is an item.
 - `indexcol`: Optional. Specifies a column to use as transaction identifiers. 
    If not provided, row numbers are used as identifiers.
-   
+
 ## File Constructor
-    Txns(file::String, delimiter::Union{Char,String}; id_col::Bool = false, skiplines::Int = 0, nlines::Int = 0)
+```julia
+Txns(file::String, delimiter::Union{Char,String}; id_col::Bool = false, skiplines::Int = 0, nlines::Int = 0)
+```
 The file constructor allows creation of a `Txns` object directly from a file:
 - `file`: Path to the input file containing transaction data.
 - `delimiter`: Character or string used to separate items in each transaction.

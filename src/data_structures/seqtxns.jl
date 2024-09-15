@@ -49,10 +49,14 @@ subset of all possible items.
 
 # Constructors
 ## Default Constructor
-    SeqTxns(matrix::SparseMatrixCSC{Bool,Int64}, colkeys::Vector{String}, linekeys::Vector{String}, index::Vector{UInt32})
+```julia
+SeqTxns(matrix::SparseMatrixCSC{Bool,Int64}, colkeys::Vector{String}, linekeys::Vector{String}, index::Vector{UInt32})
+```
 
 ## DataFrame Constructor
-    SeqTxns(df::DataFrame, sequence_col::Symbol, index_col::Union{Symbol,Nothing}=nothing)
+```julia
+SeqTxns(df::DataFrame, sequence_col::Symbol, index_col::Union{Symbol,Nothing}=nothing)
+```
 The DataFrame constructor allows direct creation of a `SeqTxns` object from a DataFrame:
 - `df`: Input DataFrame where each row is a transaction and each column is an item.
 - `sequence_col`: Specifies the column used to determine sequence groupings.
@@ -60,7 +64,9 @@ The DataFrame constructor allows direct creation of a `SeqTxns` object from a Da
    If not provided, row numbers are used as identifiers.
 
 ## File Constructor
-    SeqTxns(file::String, item_delimiter::Union{Char,String}, set_delimiter::Union{Char,String}; id_col::Bool = false, skiplines::Int = 0, nlines::Int = 0)
+```julia
+SeqTxns(file::String, item_delimiter::Union{Char,String}, set_delimiter::Union{Char,String}; id_col::Bool = false, skiplines::Int = 0, nlines::Int = 0)
+```
 The file constructor allows creation of a `SeqTxns` object directly from a file:
 - `file`: Path to the input file containing transaction data.
 - `item_delimiter`: Character or string used to separate items within a transaction.
