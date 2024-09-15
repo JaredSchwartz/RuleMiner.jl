@@ -79,7 +79,7 @@ function fpmax(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
     # Handle min_support as a float value
     min_support = min_support isa Float64 ? ceil(Int, min_support * n_transactions) : min_support
 
-    tree = make_FPTree(txns, min_support)
+    tree = FPTree(txns, min_support)
     
     # Initialize results set
     candidate_maximal_itemsets = Set{Vector{Int}}()
@@ -131,9 +131,9 @@ function fpmax(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
     # Create the result DataFrame
     result_df = DataFrame(
         Itemset = [RuleMiner.getnames(itemset, txns) for itemset in maximal_itemsets],
-        Length = [length(itemset) for itemset in maximal_itemsets],
         Support = [sum(all(txns.matrix[:, itemset], dims=2)) / n_transactions for itemset in maximal_itemsets],
-        N = [sum(all(txns.matrix[:, itemset], dims=2)) for itemset in maximal_itemsets]
+        N = [sum(all(txns.matrix[:, itemset], dims=2)) for itemset in maximal_itemsets],
+        Length = [length(itemset) for itemset in maximal_itemsets]
     )
     
     # Sort results by length in descending order, then by support

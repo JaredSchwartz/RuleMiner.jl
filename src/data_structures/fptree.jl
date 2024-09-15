@@ -71,81 +71,85 @@ mutable struct FPTree
     root::FPNode
     header_table::Dict{Int, Vector{FPNode}}
     col_mapping::Dict{Int, Int}
-    
-    FPTree() = new(FPNode(-1), Dict{Int, Vector{FPNode}}(), Dict{Int, Int}())
-end
+    min_support::Int
+    n_transactions::Int
+    colkeys::Vector{String}
 
-"""
+    # Default constructor
+    FPTree() = new(FPNode(-1), Dict{Int, Vector{FPNode}}(), Dict{Int, Int}(), 0, 0, String[])
 
-    make_FPTree(txns::Transactions, min_support::Int)::FPTree
+    # Constructor from Transactions
+    function FPTree(txns::Transactions, min_support::Union{Int,Float64})
+        n_transactions = txns.n_transactions
+        min_support = min_support isa Float64 ? ceil(Int, min_support * n_transactions) : min_support
 
-This is a function which constructs an `FPTree`` object from a `Transactions` object.
-"""
-function make_FPTree(txns::Transactions, min_support::Int)::FPTree
-    n_transactions = size(txns.matrix, 1)
+        # Sort and filter items based on support
+        col_sums = vec(sum(txns.matrix, dims=1))
+        sorted_cols = sort(findall(>=(min_support), col_sums), by=i -> col_sums[i], rev=true)
 
-    # Sort and filter items based on support
-    col_sums = vec(sum(txns.matrix, dims=1))
-    sorted_cols = sort(findall(>=(min_support), col_sums), by=i -> col_sums[i], rev=true)
+        # Initialize FPTree structure
+        tree = new(
+            FPNode(-1),
+            Dict{Int, Vector{FPNode}}(),
+            Dict(i => col for (i, col) in enumerate(sorted_cols)),
+            min_support,
+            n_transactions,
+            txns.colkeys
+        )
 
-    # Initialize FPTree structure
-    tree = FPTree()
-    tree.root = FPNode(-1)  # Root node with value -1
-    tree.col_mapping = Dict(i => col for (i, col) in enumerate(sorted_cols))
-    tree.header_table = Dict{Int, Vector{FPNode}}()
+        # Determine chunks for parallel processing
+        min_chunk_size = 50
+        max_chunks = min(nthreads() * 4, cld(n_transactions, min_chunk_size))
+        chunk_size = max(min_chunk_size, cld(n_transactions, max_chunks))
+        n_chunks = min(max_chunks, cld(n_transactions, chunk_size))
 
-    # Determine chunks for parallel processing
-    min_chunk_size = 50
-    max_chunks = min(nthreads() * 4, cld(n_transactions, min_chunk_size))
-    chunk_size = max(min_chunk_size, cld(n_transactions, max_chunks))
-    n_chunks = min(max_chunks, cld(n_transactions, chunk_size))
+        # Pre-allocate fixed-size buffers for each thread
+        buffer_size = length(sorted_cols)
+        thread_buffers = [Vector{Int}(undef, buffer_size) for _ in 1:nthreads()]
 
-    # Pre-allocate fixed-size buffers for each thread
-    buffer_size = length(sorted_cols)
-    thread_buffers = [Vector{Int}(undef, buffer_size) for _ in 1:nthreads()]
-
-    # Process transactions in parallel
-    local_trees = Vector{FPNode}(undef, n_chunks)
-    @sync begin
-        for (chunk_id, chunk_start) in enumerate(1:chunk_size:n_transactions)
-            Threads.@spawn begin
-                chunk_end = min(chunk_start + chunk_size - 1, n_transactions)
-                local_tree = FPNode(-1)  # Local tree for this chunk
-                buffer = thread_buffers[Threads.threadid()]
-                
-                # Process each transaction in the chunk
-                for row in chunk_start:chunk_end
-                    transaction_size = 0
-                    @inbounds for (new_idx, col) in enumerate(sorted_cols)
-                        if txns.matrix[row, col]
-                            transaction_size += 1
-                            buffer[transaction_size] = new_idx
-                        end
-                    end
+        # Process transactions in parallel
+        local_trees = Vector{FPNode}(undef, n_chunks)
+        @sync begin
+            for (chunk_id, chunk_start) in enumerate(1:chunk_size:n_transactions)
+                Threads.@spawn begin
+                    chunk_end = min(chunk_start + chunk_size - 1, n_transactions)
+                    local_tree = FPNode(-1)  # Local tree for this chunk
+                    buffer = thread_buffers[Threads.threadid()]
                     
-                    # Insert the transaction into the local tree
-                    node = local_tree
-                    @inbounds for i in 1:transaction_size
-                        item = buffer[i]
-                        child = get(node.children, item, nothing)
-                        if isnothing(child)
-                            child = FPNode(item, node)
-                            node.children[item] = child
+                    # Process each transaction in the chunk
+                    for row in chunk_start:chunk_end
+                        transaction_size = 0
+                        @inbounds for (new_idx, col) in enumerate(sorted_cols)
+                            if txns.matrix[row, col]
+                                transaction_size += 1
+                                buffer[transaction_size] = new_idx
+                            end
                         end
-                        child.support += 1
-                        node = child
+                        
+                        # Insert the transaction into the local tree
+                        node = local_tree
+                        @inbounds for i in 1:transaction_size
+                            item = buffer[i]
+                            child = get(node.children, item, nothing)
+                            if isnothing(child)
+                                child = FPNode(item, node)
+                                node.children[item] = child
+                            end
+                            child.support += 1
+                            node = child
+                        end
                     end
-                end
 
-                local_trees[chunk_id] = local_tree
+                    local_trees[chunk_id] = local_tree
+                end
             end
         end
-    end
 
-    # Merge local trees into the main tree
-    for local_tree in local_trees
-        merge_tree!(tree.root, local_tree, tree.header_table)
-    end
+        # Merge local trees into the main tree
+        for local_tree in local_trees
+            merge_tree!(tree.root, local_tree, tree.header_table)
+        end
 
-    return tree
+        return tree
+    end
 end

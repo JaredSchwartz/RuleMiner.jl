@@ -98,6 +98,7 @@ struct Txns <: Transactions
     matrix::SparseMatrixCSC{Bool,UInt32}
     colkeys::Vector{String}
     linekeys::Vector{String}
+    n_transactions::Int
 
     # Original constructor
     function Txns(matrix::SparseMatrixCSC{Bool,UInt32}, colkeys::Vector{String}, linekeys::Vector{String})
@@ -105,7 +106,7 @@ struct Txns <: Transactions
         
         (isempty(linekeys) || size(matrix, 1) == length(linekeys)) || throw(ArgumentError("Length of linekeys ($(length(linekeys))) must be 0 or match the number of rows in matrix ($(size(matrix, 1)))"))
         
-        return new(matrix, colkeys, linekeys)
+        return new(matrix, colkeys, linekeys, size(matrix, 1))
     end
 
     # Constructor from DataFrame
@@ -130,7 +131,7 @@ struct Txns <: Transactions
         colkeys = string.(names(df))
         matrix = SparseMatrixCSC((Matrix(df)))
         
-        return new(matrix, colkeys, linekeys)
+        return new(matrix, colkeys, linekeys,size(matrix,1))
     end
 
     # Constructor from file
@@ -194,6 +195,6 @@ struct Txns <: Transactions
         matrix = SparseMatrixCSC(m, n, colptr, rowval, nzval)
         ColKeys = sort!(collect(keys(item_map)), by=k->item_map[k])
 
-        return new(matrix, ColKeys, rowkeys)
+        return new(matrix, ColKeys, rowkeys, m)
     end
 end

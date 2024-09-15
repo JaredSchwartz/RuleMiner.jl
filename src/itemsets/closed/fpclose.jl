@@ -69,13 +69,12 @@ result = fpclose(txns, 5_000)
 # References
 Grahne, Gösta, and Jianfei Zhu. “Fast Algorithms for Frequent Itemset Mining Using FP-Trees.” IEEE Transactions on Knowledge and Data Engineering 17, no. 10 (October 2005): 1347–62. https://doi.org/10.1109/TKDE.2005.166.
 """
-function fpclose(txns::Transactions, min_support::Union{Int,Float64})
-    n_transactions = size(txns.matrix, 1)
-    
-    # Handle min_support as a float value
+function fpclose(data::Union{Transactions,FPTree}, min_support::Union{Int,Float64})
+    n_transactions = data.n_transactions
     min_support = min_support isa Float64 ? ceil(Int, min_support * n_transactions) : min_support
+    tree = data isa FPTree ? data : FPTree(data,min_support)
 
-    tree = make_FPTree(txns, min_support)
+    min_support >= tree.min_support || throw(DomainError(min_support,"Minimum support must be greater than or equal to the FPTree's min_support: $(tree.min_support)"))
     
     # Initialize results dictionary
     Results = Dict{Vector{Int}, Int}()
@@ -124,7 +123,7 @@ function fpclose(txns::Transactions, min_support::Union{Int,Float64})
     fpclose!(Results, tree, Int[], min_support)
 
     df = DataFrame(
-        Itemset = [RuleMiner.getnames(itemset, txns) for itemset in keys(Results)], 
+        Itemset = [data.colkeys[itemset] for itemset in keys(Results)], 
         Support = [support / n_transactions for support in values(Results)],
         N = collect(values(Results)),
         Length = [length(itemset) for itemset in keys(Results)]

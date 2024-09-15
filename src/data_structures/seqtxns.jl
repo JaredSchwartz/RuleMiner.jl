@@ -101,6 +101,7 @@ struct SeqTxns <: Transactions
     colkeys::Vector{String}
     linekeys::Vector{String}
     index::Vector{UInt32}
+    n_transactions::Int
 
     # Constructor
     function SeqTxns(matrix::SparseMatrixCSC{Bool,UInt32}, colkeys::Vector{String}, linekeys::Vector{String}, index::Vector{UInt32})
@@ -114,7 +115,7 @@ struct SeqTxns <: Transactions
         
         last(index) <= size(matrix,1) || throw(DomainError(last(index), "Last series start must not exceed number of rows ($(size(matrix,1)))"))
         
-        return new(matrix, colkeys, linekeys, index)
+        return new(matrix, colkeys, linekeys, index, size(matrix,1))
     end
 
     # Constructor from DataFrame
@@ -145,7 +146,7 @@ struct SeqTxns <: Transactions
         colkeys = string.(names(df))
         matrix = SparseMatrixCSC((Matrix(df)))
 
-        return new(matrix, colkeys, linekeys, index)
+        return new(matrix, colkeys, linekeys, index, size(matrix,1))
     end
 
     # Constructor from file
@@ -222,6 +223,6 @@ struct SeqTxns <: Transactions
         matrix = SparseMatrixCSC(m, n, colptr, rowval, nzval)
         colkeys = sort!(collect(keys(item_map)), by=k->item_map[k])
         
-        return new(matrix, colkeys, rowkeys, index)
+        return new(matrix, colkeys, rowkeys, index, m)
     end
 end
