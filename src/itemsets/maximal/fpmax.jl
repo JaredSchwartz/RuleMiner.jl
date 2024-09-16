@@ -64,7 +64,7 @@ find all frequent itemsets.
 # Example
 ```julia
 # Using a Transactions object
-txns = load_transactions("transactions.txt", ' ')
+txns = Txns("transactions.txt", ' ')
 result = fpmax(txns, 0.05)  # Find maximal frequent itemsets with 5% minimum support
 
 # Using a pre-constructed FPTree

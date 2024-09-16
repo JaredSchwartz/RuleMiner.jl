@@ -51,7 +51,7 @@ ECLAT's depth-first approach enables it to quickly identify long frequent itemse
 
 # Example
 ```julia
-txns = load_transactions("transactions.txt", ' ')
+txns = Txns("transactions.txt", ' ')
 
 # Find frequent itemsets with 5% minimum support
 result = eclat(txns, 0.05)

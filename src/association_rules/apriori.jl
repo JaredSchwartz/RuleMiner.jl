@@ -67,7 +67,7 @@ calculates their support, confidence, and other metrics.
 
 # Example
 ```julia
-txns = load_transactions("transactions.txt", ' ')
+txns = Txns("transactions.txt", ' ')
 
 # Find rules with 5% min support and max length of 3
 result = apriori(txns, 0.05, 3)

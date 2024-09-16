@@ -48,7 +48,7 @@ It utilizes two key pruning techniques to avoid redundant mining: prefix-preserv
 
 # Example
 ```julia
-txns = load_transactions("transactions.txt", ' ')
+txns = Txns("transactions.txt", ' ')
 
 # Find closed frequent itemsets with 5% minimum support
 result = LCM(txns, 0.05)

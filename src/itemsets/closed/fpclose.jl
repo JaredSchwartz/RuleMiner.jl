@@ -60,7 +60,7 @@ find all frequent itemsets.
 # Example
 ```julia
 # Using a Transactions object
-txns = load_transactions("transactions.txt", ' ')
+txns = Txns("transactions.txt", ' ')
 result = fpclose(txns, 0.05)  # Find closed frequent itemsets with 5% minimum support
 
 # Using a pre-constructed FPTree

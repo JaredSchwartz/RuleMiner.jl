@@ -45,7 +45,7 @@ It uses a depth-first approach, exploring the search space and checking found it
 
 # Example
 ```julia
-txns = load_transactions("transactions.txt", ' ')
+txns = Txns("transactions.txt", ' ')
 
 # Find closed frequent itemsets with 5% minimum support
 result = charm(txns, 0.05)

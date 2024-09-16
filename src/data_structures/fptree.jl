@@ -65,7 +65,7 @@ The Transaction constructor allows creation of a `FPTree` object from a `Transac
 empty_tree = FPTree()
 
 # Create an FP-Tree from a Transactions object
-txns = load_transactions("transactions.txt", ' ')
+txns = Txns("transactions.txt", ' ')
 tree = FPTree(txns, 0.05)  # Using 5% minimum support
 
 # Access tree properties

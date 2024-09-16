@@ -58,7 +58,7 @@ The algorithm operates in two main phases:
 # Example
 ```julia
 # Using a Transactions object
-txns = load_transactions("transactions.txt", ' ')
+txns = Txns("transactions.txt", ' ')
 result = fpgrowth(txns, 0.05)  # Find frequent itemsets with 5% minimum support
 
 # Using a pre-constructed FPTree

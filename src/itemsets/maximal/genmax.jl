@@ -50,7 +50,7 @@ The algorithm proceeds in two main phases:
 
 # Example
 ```julia
-txns = load_transactions("transactions.txt", ' ')
+txns = Txns("transactions.txt", ' ')
 
 # Find maximal frequent itemsets with 5% minimum support
 result = genmax(txns, 0.05)

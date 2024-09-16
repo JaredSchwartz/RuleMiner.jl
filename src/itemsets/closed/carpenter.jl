@@ -49,7 +49,7 @@ CARPENTER is specialized for datasets which have few transactions, but many item
 
 # Example
 ```julia
-txns = load_transactions("transactions.txt", ' ')
+txns = Txns("transactions.txt", ' ')
 
 # Find closed frequent itemsets with 5% minimum support
 result = carpenter(txns, 0.05)
