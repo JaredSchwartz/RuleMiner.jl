@@ -1,5 +1,5 @@
 # RuleMiner.jl
-# Asoociation Rule Mining in Julia
+# Pattern Mining in Julia
 #=
 Copyright (c) 2024 Jared Schwartz
 
@@ -28,7 +28,7 @@ module RuleMiner
 using DataFrames
 using Combinatorics
 
-# Stdlib Dependencies
+# Base and Standard Library Dependencies
 using Mmap
 using Base.Threads
 using SparseArrays
@@ -52,7 +52,7 @@ include("data_structures/fputils.jl")
 export FPNode
 export FPTree
 
-#=============Assocition Rule Mining=============#
+#=============Association Rule Mining=============#
 include("association_rules/apriori.jl")
 
 export apriori
