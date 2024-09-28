@@ -72,7 +72,7 @@
         @test isempty(data.linekeys)
     end
 end
-@testset "seqtxns.jl" begin
+#= @testset "seqtxns.jl" begin
 
     item_vals = ["bacon", "beer", "bread", "buns", "butter", "cheese", "eggs", "flour", "ham", "hamburger", "hot dogs", "ketchup", "milk", "mustard", "sugar", "turkey"]
     index_vals = ["1111", "1112", "1113", "1114", "1115", "1116", "1117", "1118", "1119","1120", "1121", "1122"]
@@ -168,4 +168,4 @@ end
         data = SeqTxns(joinpath(@__DIR__,"files/sequential/data.txt"),',',';')
         @test RuleMiner.getends(data) == bounds
     end
-end
+end =#

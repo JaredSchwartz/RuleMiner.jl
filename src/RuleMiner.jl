@@ -40,7 +40,7 @@ include("data_structures/seqtxns.jl")
 include("data_structures/txnutils.jl")
 
 export Txns
-export SeqTxns
+#export SeqTxns
 export Transactions
 export txns_to_df
 
@@ -52,7 +52,7 @@ include("data_structures/fputils.jl")
 export FPNode
 export FPTree
 
-#=============Association Rule Mining=============#
+#=============Association Rule Mining============#
 include("association_rules/apriori.jl")
 
 export apriori
