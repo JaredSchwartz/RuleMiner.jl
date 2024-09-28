@@ -27,6 +27,7 @@ module RuleMiner
 # Package Dependencies
 using DataFrames
 using Combinatorics
+using PrettyTables
 
 # Base and Standard Library Dependencies
 using Mmap

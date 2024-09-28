@@ -204,3 +204,100 @@ struct Txns <: Transactions
         return new(matrix, ColKeys, rowkeys, m)
     end
 end
+
+Base.length(txns::Txns) =  txns.n_transactions
+
+function Base.getindex(txns::Txns, i::Int)
+    1 <= i <= length(txns) || throw(BoundsError(txns, i))
+    items = findall(txns.matrix[i, :])
+    if !isempty(txns.linekeys)
+        return (id = txns.linekeys[i], items = txns.colkeys[items])
+    else
+        return txns.colkeys[items]
+    end
+end
+
+function Base.first(txns::Txns, n::Integer=1)
+        return [txns[i] for i in 1:min(n, txns.n_transactions)]
+end
+
+function Base.last(txns::Txns, n::Integer=1)
+    return [txns[i] for i in max(1, txns.n_transactions-n+1):txns.n_transactions]
+end
+
+function Base.show(io::IO, ::MIME"text/plain", txns::Txns)
+    n_transactions, n_items = size(txns.matrix)
+    n_nonzero = nnz(txns.matrix)
+
+    println(io, "Txns with $n_transactions transactions, $n_items items, and $n_nonzero non-zero elements")
+
+    # Get terminal size
+    term_height, term_width = displaysize(io)
+    max_display_rows = min(term_height,40) - 8  # Reserve some lines for header and footer
+    
+    # Determine rows to display
+    if n_transactions <= max_display_rows
+        rows_to_display = 1:n_transactions
+    else
+        half_display = div(max_display_rows - 1, 2)  # -1 to account for ellipsis row
+        rows_to_display = [1:half_display; (n_transactions - half_display):n_transactions]
+    end
+
+    # Prepare data for visible rows
+    visible_data = Matrix{String}(undef, length(rows_to_display), 2)
+    
+    for (i, row) in enumerate(rows_to_display)
+        visible_data[i, 1] = !isempty(txns.linekeys) ? txns.linekeys[row] : string(row)
+        items = txns.colkeys[findall(txns.matrix[row, :])]
+        visible_data[i, 2] = join(items, ", ")
+    end
+
+    # Add ellipsis row if necessary
+    if n_transactions > max_display_rows
+        visible_data = vcat(visible_data[1:half_display, :], 
+                            ["⋮" "⋮"],
+                            visible_data[half_display+1:end, :])
+    end
+
+    # Calculate column widths based on visible data
+    index_width = max(length("Index"),length(string(n_transactions)), maximum(length, visible_data[:, 1]))
+    max_itemset_length = maximum(length, visible_data[:, 2])
+    
+    # Calculate the available width for the items column
+    available_width = term_width - index_width - 3  # -3 for column separator and padding
+    
+    # Set the items column width
+    items_width = min(max_itemset_length, available_width)
+
+    # Define table format (no outer border, but with vertical bar between columns)
+    tf = TextFormat(
+        up_right_corner     = ' ',
+        up_left_corner      = ' ',
+        bottom_left_corner  = ' ',
+        bottom_right_corner = ' ',
+        up_intersection     = '─',
+        left_intersection   = ' ',
+        right_intersection  = ' ',
+        bottom_intersection = '─',
+        column              = '│',
+        row                 = '─',
+        hlines              = [:header],
+    )
+
+    # Custom formatter function to truncate items only if necessary
+    function truncate_items(data, i, j)
+        if j == 2 && length(data) > items_width
+            return data[1:prevind(data, items_width-2)] * "…"
+        end
+        return data
+    end
+
+    # Print the table
+    pretty_table(io, visible_data, header=["Index", "Items"], tf=tf,
+                 crop=:none, 
+                 alignment=[:r, :l], 
+                 show_row_number=false,
+                 formatters=(truncate_items,),
+                 columns_width=[index_width, items_width],
+                 vlines=[1])
+end
