@@ -181,3 +181,33 @@ mutable struct FPTree
         return tree
     end
 end
+
+function Base.show(io::IO, ::MIME"text/plain", tree::FPTree)
+    num_items = length(tree.header_table)
+    num_nodes = sum([length(i) for i in values(tree.header_table)])
+    println(io, "FPTree with $num_items items and $num_nodes nodes")
+    print_fptree_recursive(io,tree)
+end
+
+function print_fptree_recursive(io::IO, tree::FPTree, node::FPNode = tree.root, prefix::String = "", is_last::Bool = true)
+    # Print the current node
+    if node === tree.root
+        println(io, "Root")
+    else
+        branch = is_last ? "└── " : "├── "
+        item_name = tree.colkeys[tree.col_mapping[node.value]]
+        println(io, prefix, branch, item_name, " (", node.support, ")")
+    end
+
+    # Prepare the prefix for children
+    child_prefix = prefix * (is_last ? "    " : "│   ")
+
+    # Get and sort children
+    children = collect(values(node.children))
+    sort!(children, by = c -> c.support, rev = true)
+
+    # Print children
+    for (i, child) in enumerate(children)
+        print_fptree_recursive(io, tree, child, child_prefix, i == length(children))
+    end
+end

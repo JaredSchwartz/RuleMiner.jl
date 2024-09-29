@@ -50,12 +50,34 @@ These examples use the `retail` dataset from the [Frequent Itemset Mining Implem
 using RuleMiner
 ```
 
-Load data to create a Transactions object or alternatively convert an existing 1-hot encoded DataFrame. 
+Load data to create a Transactions object.
 
 ```julia
-data = load_transactions("retail.txt",' ')
-
-data = Transactions(df)
+data = Txns("retail.txt",' ')
+```
+Result:
+```
+Txns with 88162 transactions, 16470 items, and 908576 non-zero elements
+ Index │ Items                                                                                                                               
+───────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+     1 │ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30
+     2 │ 31, 32, 33
+     3 │ 34, 35, 36
+     4 │ 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47
+     5 │ 39, 40, 48, 49
+     6 │ 39, 40, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59
+     ⋮ │ ⋮
+ 88156 │ 40, 42, 49, 244, 343, 439, 549, 704, 927, 968, 1061, 1281, 1773, 1815, 2013, 2715, 2793, 4593, 4647, 4699, 9151, 12933, 13335, 4894…
+ 88157 │ 49, 202, 256, 279, 408, 480, 768, 825, 987, 1396, 1599, 2023, 2284, 2376, 6726, 13335, 14007, 14100
+ 88158 │ 40, 876, 2666, 2963, 12960, 14071, 14407, 15519, 16380
+ 88159 │ 40, 42, 102, 347, 394, 414, 480, 523, 587, 636, 696, 800, 1467, 1787, 1995, 2450, 2831, 3036, 3592, 3723, 6218, 11494, 12130, 13034
+ 88160 │ 2311, 4268
+ 88161 │ 40, 49, 2529
+ 88162 │ 33, 40, 206, 243, 1394
+```
+Or alternatively convert an existing 1-hot encoded DataFrame. 
+```
+data = Txns(df)
 ```
 
 Generate association rules using _A Priori_ with 10% minimum support and a max rule length of 3.
