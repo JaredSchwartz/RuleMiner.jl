@@ -1,5 +1,5 @@
 <p align="center">
-<img width="400px" src="./docs/src/assets/logo.svg" title="RuleMiner logo"/>
+<img width="400px" src="./docs/src/assets/logo.svg" title="RuleMiner logo">
 </p>
 
 # RuleMiner.jl - Pattern Mining in Julia
@@ -32,11 +32,14 @@ The package currently has support for these algorithms:
 - CHARM[^5]
 - LCM[^6]
 - CARPENTER[^7]
-- LevelWise[^8] (for recovering frequent itemsets)
 
 **Maximal Itemset Mining**
-- FPMax[^9]
-- GenMax[^10]
+- FPMax[^8]
+- GenMax[^9]
+
+**Frequent Itemset Recovery**
+- RecoverClosed[^10] (recovery from closed itemsets)
+- RecoverMax (recovery from maximal itemsets)
 
 ## Installation
 ```
@@ -49,8 +52,8 @@ These examples use the `retail` dataset from the [Frequent Itemset Mining Implem
 ```julia
 using RuleMiner
 ```
-
-Load data to create a Transactions object.
+### Create Txns objects
+Load transactions from a file into Txns
 
 ```julia
 data = Txns("retail.txt",' ')
@@ -79,7 +82,7 @@ Or alternatively convert an existing 1-hot encoded DataFrame.
 ```
 data = Txns(df)
 ```
-
+### Mine patterns from Txns objects
 Generate association rules using _A Priori_ with 10% minimum support and a max rule length of 3.
 
 ```julia
@@ -151,7 +154,7 @@ See [this post](https://julialang.org/blog/2019/07/multithreading/) for more inf
 > Multithreading can be configured for the VScode integrated terminal by setting the `julia.NumThreads` parameter in VScode settings.
 
 ## Future Work
-Future versions will support high-utility mining and sequential mining algorithms.
+Future versions will support sequential mining algorithms and high-utility mining algorithms.
 
 ## References
 [^1]: Agrawal, Rakesh, and Ramakrishnan Srikant. “Fast Algorithms for Mining Association Rules in Large Databases.” In Proceedings of the 20th International Conference on Very Large Data Bases, 487–99. VLDB ’94. San Francisco, CA, USA: Morgan Kaufmann Publishers Inc., 1994.
@@ -168,8 +171,8 @@ Future versions will support high-utility mining and sequential mining algorithm
 
 [^7]: Pan, Feng, Gao Cong, Anthony K. H. Tung, Jiong Yang, and Mohammed J. Zaki. “Carpenter: Finding Closed Patterns in Long Biological Datasets.” In Proceedings of the Ninth ACM SIGKDD International Conference on Knowledge Discovery and Data Mining, 637–42. KDD ’03. New York, NY, USA: Association for Computing Machinery, 2003. https://doi.org/10.1145/956750.956832.
 
-[^8]: Pasquier, Nicolas, Yves Bastide, Rafik Taouil, and Lotfi Lakhal. “Efficient Mining of Association Rules Using Closed Itemset Lattices.” Information Systems 24, no. 1 (March 1, 1999): 25–46. https://doi.org/10.1016/S0306-4379(99)00003-4.
+[^8]: Grahne and Zhu, “Fast Algorithms for Frequent Itemset Mining Using FP-Trees.”
 
-[^9]: Grahne and Zhu, “Fast Algorithms for Frequent Itemset Mining Using FP-Trees.”
+[^9]: Gouda, Karam, and Mohammed J. Zaki. “GenMax: An Efficient Algorithm for Mining Maximal Frequent Itemsets.” Data Mining and Knowledge Discovery 11, no. 3 (November 1, 2005): 223–42. https://doi.org/10.1007/s10618-005-0002-x.
 
-[^10]: Gouda, Karam, and Mohammed J. Zaki. “GenMax: An Efficient Algorithm for Mining Maximal Frequent Itemsets.” Data Mining and Knowledge Discovery 11, no. 3 (November 1, 2005): 223–42. https://doi.org/10.1007/s10618-005-0002-x.
+[^10]: Pasquier, Nicolas, Yves Bastide, Rafik Taouil, and Lotfi Lakhal. “Efficient Mining of Association Rules Using Closed Itemset Lattices.” Information Systems 24, no. 1 (March 1, 1999): 25–46. https://doi.org/10.1016/S0306-4379(99)00003-4.
