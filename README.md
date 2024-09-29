@@ -2,14 +2,14 @@
 <img width="400px" src="./docs/src/assets/logo.svg" title="RuleMiner logo">
 </p>
 
-# RuleMiner.jl - Pattern Mining in Julia
+# RuleMiner.jl - Data Mining in Julia
 [![Build Status](https://github.com/JaredSchwartz/RuleMiner.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/JaredSchwartz/RuleMiner.jl/actions/workflows/CI.yml?query=branch%3Amain)
 [![codecov](https://codecov.io/github/JaredSchwartz/RuleMiner.jl/graph/badge.svg?token=KDAVR32F6S)](https://codecov.io/github/JaredSchwartz/RuleMiner.jl)
 [![](https://img.shields.io/badge/docs-stable-blue.svg)](https://jaredschwartz.github.io/RuleMiner.jl/stable/)
 [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://jaredschwartz.github.io/RuleMiner.jl/dev/)
 
 ## About
-RuleMiner.jl is a Julia package for pattern mining inspired by the [arules](https://github.com/mhahsler/arules) R package and [SPMF](https://www.philippe-fournier-viger.com/spmf/) Java library.
+RuleMiner.jl is a Julia package for data mining inspired by the [arules](https://github.com/mhahsler/arules) R package and [SPMF](https://www.philippe-fournier-viger.com/spmf/) Java library.
 
 Key features of RuleMiner.jl include:
 
