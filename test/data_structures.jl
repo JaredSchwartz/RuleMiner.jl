@@ -1,3 +1,38 @@
+@testset "fptree.jl" begin
+    txns = Txns(joinpath(@__DIR__,"files/frequent/data.txt"),',')
+    @testset "convert Txns" begin
+        tree = FPTree(txns,0.3)
+        @test sort(collect(keys(tree.header_table))) == [1, 2, 3, 4, 5, 6]
+        @test sort([length(i) for i in values(tree.header_table)]) == [1, 2, 2, 2, 3, 3]
+    end
+    @testset "Printing" begin
+        tree = FPTree(txns,0.3)
+        buffer = IOBuffer()
+        Base.show(buffer,"text/plain", tree)
+        output = String(take!(buffer))
+        
+        expected_output = """
+        FPTree with 6 items and 13 nodes
+        Root
+            ├── milk (5)
+            │   ├── eggs (4)
+            │   │   ├── beer (1)
+            │   │   └── bread (1)
+            │   └── beer (1)
+            ├── bread (2)
+            │   └── ham (2)
+            │       └── cheese (1)
+            ├── beer (1)
+            │   └── cheese (1)
+            └── eggs (1)
+                └── ham (1)
+                    └── cheese (1)
+        """
+        lines = [rstrip(line) for line in eachsplit(output,'\n')]
+        lines2 = [rstrip(line) for line in eachsplit(expected_output,'\n')]
+        @test all(lines .== lines2)
+    end
+end
 @testset "txns.jl" begin
     item_vals = ["bacon", "beer", "bread", "buns", "butter", "cheese", "eggs", "flour", "ham", "hamburger", "hot dogs", "ketchup", "milk", "mustard", "sugar", "turkey"]
     index_vals = ["1111", "1112", "1113", "1114", "1115", "1116", "1117", "1118", "1119"]
@@ -70,6 +105,44 @@
         @test sum(data.matrix) == 36
         @test sort(data.colkeys) == item_vals
         @test isempty(data.linekeys)
+    end
+    @testset "Auxiliary Functions" begin
+        data = Txns(joinpath(@__DIR__,"files/frequent/data.txt"),',')
+        @testset "first()" begin
+            firstline = [["milk", "eggs", "bread"]]
+            first2 = [["milk", "eggs", "bread"], ["milk", "eggs", "butter", "sugar", "flour"]]
+            @test first(data) == firstline
+            @test first(data,2) == first2
+        end
+        @testset "last()" begin
+            lastline = [["eggs", "bacon", "ham", "cheese"]]
+            last2 = [["milk", "beer", "ketchup", "hamburger"], ["eggs", "bacon", "ham", "cheese"]]
+            @test last(data) == lastline
+            @test last(data,2) == last2
+        end
+        @testset "Printing" begin
+            buffer = IOBuffer()
+            Base.show(buffer,"text/plain", data)
+            output = String(take!(buffer))
+            
+            expected_output = """
+            Txns with 9 transactions, 16 items, and 36 non-zero elements
+             Index │ Items                                            
+            ───────┼──────────────────────────────────────────────────
+                 1 │ milk, eggs, bread
+                 2 │ milk, eggs, butter, sugar, flour
+                 3 │ milk, eggs, bacon, beer
+                 4 │ bread, ham, turkey
+                 5 │ bread, ham, cheese, ketchup
+                 6 │ beer, cheese, mustard, hot dogs, buns, hamburger
+                 7 │ milk, eggs, sugar
+                 8 │ milk, beer, ketchup, hamburger
+                 9 │ eggs, bacon, ham, cheese
+            """
+            lines = [rstrip(line) for line in eachsplit(output,'\n')]
+            lines2 = [rstrip(line) for line in eachsplit(expected_output,'\n')]
+            @test all(lines .== lines2)
+        end
     end
 end
 #= @testset "seqtxns.jl" begin
