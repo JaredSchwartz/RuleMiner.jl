@@ -142,7 +142,7 @@ function delimcounter(io::Vector{UInt8}, items::Union{Char, String}...)::Vector{
     return result
 end
 
-
+#=
 """
     getends(txns::SeqTxns)::Vector{UInt}
 
@@ -177,7 +177,7 @@ function getends(txns::SeqTxns)::Vector{UInt32}
     
     return result
 end
-
+=#
 
 """
     getnames(indexes::Vector{Int}, txns::Transactions) -> Vector{String}
@@ -248,7 +248,7 @@ function txns_to_df(txns::Txns)::DataFrame
     return df
 end
 
-
+#=
 """
     txns_to_df(txns::SeqTxns, id_col::Bool = false)::DataFrame
 
@@ -302,3 +302,4 @@ function txns_to_df(txns::SeqTxns, index::Bool = true)::DataFrame
     
     return df
 end
+=#
