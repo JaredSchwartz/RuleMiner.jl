@@ -109,13 +109,13 @@ end
     @testset "Auxiliary Functions" begin
         data = Txns(joinpath(@__DIR__,"files/frequent/data.txt"),',')
         @testset "first()" begin
-            firstline = [["milk", "eggs", "bread"]]
+            firstline = ["milk", "eggs", "bread"]
             first2 = [["milk", "eggs", "bread"], ["milk", "eggs", "butter", "sugar", "flour"]]
             @test first(data) == firstline
             @test first(data,2) == first2
         end
         @testset "last()" begin
-            lastline = [["eggs", "bacon", "ham", "cheese"]]
+            lastline = ["eggs", "bacon", "ham", "cheese"]
             last2 = [["milk", "beer", "ketchup", "hamburger"], ["eggs", "bacon", "ham", "cheese"]]
             @test last(data) == lastline
             @test last(data,2) == last2
