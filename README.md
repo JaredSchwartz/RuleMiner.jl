@@ -42,8 +42,8 @@ The package currently has support for these algorithms:
 - RecoverMax (recovery from maximal itemsets)
 
 ## Contributing
-Contributions are welcome! If you see something that could be improved, open an issue!
-Please open an issue before opening a pull request because it allows for discussion, design scoping, and roadmapping before a solution is implemented.
+If you see something that could be improved, please open an issue!
+Please no unsolicited PRs. Open an issue first.
 
 ## Installation
 ```
