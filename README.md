@@ -41,6 +41,10 @@ The package currently has support for these algorithms:
 - RecoverClosed[^10] (recovery from closed itemsets)
 - RecoverMax (recovery from maximal itemsets)
 
+## Contributing
+Contributions are welcome! If you see something that could be improved, open an issue!
+Please open an issue before opening a pull request because it allows for discussion, design scoping, and roadmapping before a solution is implemented.
+
 ## Installation
 ```
 julia> ]
@@ -79,7 +83,7 @@ Txns with 88162 transactions, 16470 items, and 908576 non-zero elements
  88162 │ 33, 40, 206, 243, 1394
 ```
 Or alternatively convert an existing 1-hot encoded DataFrame. 
-```
+```julia
 data = Txns(df)
 ```
 ### Mine patterns from Txns objects
