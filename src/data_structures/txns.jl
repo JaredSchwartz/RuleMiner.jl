@@ -217,11 +217,17 @@ function Base.getindex(txns::Txns, i::Int)
     end
 end
 
-function Base.first(txns::Txns, n::Integer=1)
-        return [txns[i] for i in 1:min(n, txns.n_transactions)]
+function Base.first(txns::Txns)
+    return txns[1]
+end
+function Base.first(txns::Txns, n::Integer)
+    return [txns[i] for i in 1:min(n, txns.n_transactions)]
 end
 
-function Base.last(txns::Txns, n::Integer=1)
+function Base.last(txns::Txns)
+    return txns[txns.n_transactions]
+end
+function Base.last(txns::Txns, n::Integer)
     return [txns[i] for i in max(1, txns.n_transactions-n+1):txns.n_transactions]
 end
 
