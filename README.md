@@ -43,7 +43,8 @@ The package currently has support for these algorithms:
 
 ## Contributing
 If you see something that could be improved, please open an issue!
-Please no unsolicited PRs. Open an issue first.
+
+Please no unsolicited PRs-- Open an issue first.
 
 ## Installation
 ```
