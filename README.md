@@ -44,7 +44,7 @@ The package currently has support for these algorithms:
 ## Contributing
 If you see something that could be improved, please open an issue!
 
-Please no unsolicited PRs-- Open an issue first.
+Please open an issue before opening a PR.
 
 ## Installation
 ```
