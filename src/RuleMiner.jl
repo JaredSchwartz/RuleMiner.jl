@@ -41,7 +41,7 @@ include("data_structures/seqtxns.jl")
 include("data_structures/txnutils.jl")
 
 export Txns
-#export SeqTxns
+export SeqTxns
 export Transactions
 export txns_to_df
 
