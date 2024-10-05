@@ -205,9 +205,11 @@ struct Txns <: Transactions
     end
 end
 
+# Utility Functions
 Base.length(txns::Txns) =  txns.n_transactions
+Base.lastindex(txns::Txns) = txns.n_transactions
 
-function Base.getindex(txns::Txns, i::Int)
+function Base.getindex(txns::Txns, i::Integer)
     1 <= i <= length(txns) || throw(BoundsError(txns, i))
     items = findall(txns.matrix[i, :])
     if !isempty(txns.linekeys)
@@ -225,7 +227,7 @@ function Base.first(txns::Txns, n::Integer)
 end
 
 function Base.last(txns::Txns)
-    return txns[txns.n_transactions]
+    return txns[end]
 end
 function Base.last(txns::Txns, n::Integer)
     return [txns[i] for i in max(1, txns.n_transactions-n+1):txns.n_transactions]
