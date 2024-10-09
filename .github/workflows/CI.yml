@@ -24,7 +24,7 @@ jobs:
       matrix:
         version:
           - '1'   # Most current stable release
-          - '1.10' # Most current LTS release
+          - 'lts' # Most current LTS release
           - 'pre' # Most current preview build
         os:
           - ubuntu-latest
