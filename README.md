@@ -88,10 +88,10 @@ Or alternatively convert an existing 1-hot encoded DataFrame.
 data = Txns(df)
 ```
 ### Mine patterns from Txns objects
-Generate association rules using _A Priori_ with 10% minimum support and a max rule length of 3.
+Generate association rules using _A Priori_ with 10% minimum support, any confidence, and a max rule length of 3.
 
 ```julia
-arules = apriori(data, 0.1, 3)
+arules = apriori(data, 0.1, 0.0, 3)
 ```
 Result:
 ```

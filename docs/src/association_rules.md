@@ -49,5 +49,5 @@ The process of association rule mining involves:
 The `apriori` function implements the A Priori algorithm for association rule mining first proposed by Rakesh Agrawal and Srikant Ramakrishnan in 1994. This algorithm identifies frequent itemsets in a dataset and generates association rules based on specified support thresholds.
 
 ```@docs
-apriori(txns::Transactions, min_support::Union{Int,Float64}, max_length::Int)
+apriori(txns::Transactions, min_support::Union{Int,Float64},min_confidence::Float64, max_length::Int)
 ```
