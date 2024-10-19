@@ -42,16 +42,16 @@ end
     end
     @testset "Truncated Printing" begin
         tree = FPTree(txns,0.3)
-        output = trunc_tester(tree,10,35)
+        output = trunc_tester(tree,10,20)
         expected_output = """
         FPTree with 6 items and 13 nodes
         Root
             ├── milk (5)
             │   ├── eggs (4)
             │   │   ├...
-            │   │   ... (1 more)
-            │   ... (1 more)
-            ... (3 more)
+            │   │   └...(1 more)
+            │   └...(1 more)
+            └...(3 more)
         """
         lines = [rstrip(line) for line in eachsplit(output,'\n')]
         lines2 = [rstrip(line) for line in eachsplit(expected_output,'\n')]
