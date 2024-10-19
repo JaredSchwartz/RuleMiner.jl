@@ -42,7 +42,7 @@ end
     end
     @testset "Truncated Printing" begin
         tree = FPTree(txns,0.3)
-        output = trunc_tester(tree,10,20)
+        output = trunc_tester(tree,12,20)
         expected_output = """
         FPTree with 6 items and 13 nodes
         Root
