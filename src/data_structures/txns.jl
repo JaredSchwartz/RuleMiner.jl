@@ -243,12 +243,14 @@ function Base.show(io::IO, ::MIME"text/plain", txns::Txns)
     term_height, term_width = displaysize(io)
     max_display_rows = min(term_height,40) - 8  # Reserve some lines for header and footer
     
+    max_display_rows <= 0 && return
+
     # Determine rows to display
     if n_transactions <= max_display_rows
         rows_to_display = 1:n_transactions
     else
         half_display = div(max_display_rows - 1, 2)  # -1 to account for ellipsis row
-        rows_to_display = [1:half_display; (n_transactions - half_display):n_transactions]
+        rows_to_display = [1:half_display; (n_transactions - half_display +1):n_transactions]
     end
 
     # Prepare data for visible rows

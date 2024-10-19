@@ -1,3 +1,12 @@
+# Function to test show() methods with various io dimensions 
+function trunc_tester(object, nlines::Int, ncols::Int)
+    buf = IOBuffer()
+    io = IOContext(buf, :limit=>true, :displaysize=>(nlines, ncols))
+    show(io, MIME"text/plain"(), object)
+    result = String(take!(buf))
+    return(result)
+end
+
 @testset "fptree.jl" begin
     txns = Txns(joinpath(@__DIR__,"files/frequent/data.txt"),',')
     @testset "convert Txns" begin
@@ -10,7 +19,6 @@
         buffer = IOBuffer()
         Base.show(buffer,"text/plain", tree)
         output = String(take!(buffer))
-        
         expected_output = """
         FPTree with 6 items and 13 nodes
         Root
@@ -27,6 +35,26 @@
             └── eggs (1)
                 └── ham (1)
                     └── cheese (1)
+        """
+        lines = [rstrip(line) for line in eachsplit(output,'\n')]
+        lines2 = [rstrip(line) for line in eachsplit(expected_output,'\n')]
+        @test all(lines .== lines2)
+    end
+    @testset "Truncated Printing" begin
+        tree = FPTree(txns,0.3)
+        output = trunc_tester(tree,15,30)
+        expected_output = """
+        FPTree with 6 items and 13 nodes
+        Root
+            ├── milk (5)
+            │   ├...
+            │   └...
+            ├── bread (2)
+            │   └...
+            ├── beer (1)
+            │   └...
+            └── eggs (1)
+                └...
         """
         lines = [rstrip(line) for line in eachsplit(output,'\n')]
         lines2 = [rstrip(line) for line in eachsplit(expected_output,'\n')]
@@ -138,6 +166,24 @@ end
                  7 │ milk, eggs, sugar
                  8 │ milk, beer, ketchup, hamburger
                  9 │ eggs, bacon, ham, cheese
+            """
+            lines = [rstrip(line) for line in eachsplit(output,'\n')]
+            lines2 = [rstrip(line) for line in eachsplit(expected_output,'\n')]
+            @test all(lines .== lines2)
+        end
+        @testset "Truncated Printing" begin
+            output = trunc_tester(data,15,30)
+            expected_output = """
+            Txns with 9 transactions, 16 items, and 36 non-zero elements
+             Index │ Items
+            ───────┼────────────────────────
+                 1 │ milk, eggs, bread
+                 2 │ milk, eggs, butter,…
+                 3 │ milk, eggs, bacon, …
+                 ⋮ │ ⋮
+                 7 │ milk, eggs, sugar
+                 8 │ milk, beer, ketchup…
+                 9 │ eggs, bacon, ham, c…
             """
             lines = [rstrip(line) for line in eachsplit(output,'\n')]
             lines2 = [rstrip(line) for line in eachsplit(expected_output,'\n')]

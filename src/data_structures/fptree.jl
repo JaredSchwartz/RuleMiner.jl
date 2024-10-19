@@ -186,18 +186,55 @@ function Base.show(io::IO, ::MIME"text/plain", tree::FPTree)
     num_items = length(tree.header_table)
     num_nodes = sum([length(i) for i in values(tree.header_table)])
     println(io, "FPTree with $num_items items and $num_nodes nodes")
-    print_fptree_recursive(io,tree)
+    
+    # Get terminal size
+    term_height, term_width = displaysize(io)
+    
+    # Reserve some lines for the header and potential truncation messages
+    available_height = term_height - 3
+    
+    # Set a minimum width threshold
+    min_width = 20
+    if term_width > min_width
+        print_fptree_recursive(io, tree, tree.root, "", true, 0, available_height, term_width, min_width)
+    end
 end
 
-function print_fptree_recursive(io::IO, tree::FPTree, node::FPNode = tree.root, prefix::String = "", is_last::Bool = true)
+function print_fptree_recursive(io::IO, tree::FPTree, node::FPNode, prefix::String, is_last::Bool, depth::Int, available_height::Int, term_width::Int, min_width::Int)
+    if available_height <= 0
+        println(io, prefix, "... (truncated)")
+        return 0
+    end
+
+    # Calculate the maximum width for the node content
+    max_content_width = term_width - length(prefix) - 4  # 4 for the branch and spaces
+
     # Print the current node
+    lines_used = 1
     if node === tree.root
         println(io, "Root")
     else
         branch = is_last ? "└── " : "├── "
         item_name = tree.colkeys[tree.col_mapping[node.value]]
-        println(io, prefix, branch, item_name, " (", node.support, ")")
+        node_str = "$item_name ($(node.support))"
+        
+        if max_content_width >= min_width
+            if length(node_str) > max_content_width
+                node_str = node_str[1:max_content_width-3] * "..."
+            end
+            println(io, prefix, branch, node_str)
+        else
+            # If too narrow, print truncated version
+            trunc_width = term_width - length(prefix) - 1
+            if trunc_width > 3
+                println(io, prefix, branch[1], "...")
+            else
+                println(io, prefix, branch[1])
+            end
+            return 1
+        end
     end
+    available_height -= 1
 
     # Prepare the prefix for children
     child_prefix = prefix * (is_last ? "    " : "│   ")
@@ -206,8 +243,32 @@ function print_fptree_recursive(io::IO, tree::FPTree, node::FPNode = tree.root, 
     children = collect(values(node.children))
     sort!(children, by = c -> c.support, rev = true)
 
-    # Print children
-    for (i, child) in enumerate(children)
-        print_fptree_recursive(io, tree, child, child_prefix, i == length(children))
+    # Check if we can print children
+    if term_width - length(child_prefix) < min_width
+        if available_height > 0
+            println(io, child_prefix, "...")
+            lines_used += 1
+        end
+        return lines_used
     end
+
+    # Print children
+    hidden_count = 0
+    for (i, child) in enumerate(children)
+        if available_height > 1  # Ensure we have space for at least one more line after this
+            child_lines = print_fptree_recursive(io, tree, child, child_prefix, i == length(children), depth + 1, available_height - 1, term_width, min_width)
+            lines_used += child_lines
+            available_height -= child_lines
+        else
+            hidden_count += 1
+        end
+    end
+
+    # If there are hidden children, show a count
+    if hidden_count > 0 && available_height > 0
+        println(io, child_prefix, "... ($hidden_count more)")
+        lines_used += 1
+    end
+
+    return lines_used
 end
