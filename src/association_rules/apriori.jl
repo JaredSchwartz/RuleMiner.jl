@@ -22,17 +22,22 @@
 # SOFTWARE.
 
 struct Arule
-    lhs::Vector{Int} # Vector containing the integer indices of the left-hand side of the rule
-    rhs::Int # Integer index of the right-hand side of the rule
-    n::Int # Count (n) value
-    cov::Int # Coverage (parent support) value
-    lin::Vector{Int} # Lineage of the rule (LHS union RHS)
-    cand::Vector{Int} # Candidate children rules
+    lhs::Vector{Int}    # Vector containing the integer indices of the left-hand side of the rule
+    rhs::Int            # Integer index of the right-hand side of the rule
+    n::Int              # Count (n) value
+    cov::Int            # Coverage (parent support) value
+    conf::Float64       # Confidence (n / cov)
+    lin::Vector{Int}    # Lineage of the rule (LHS union RHS)
+    cand::Vector{Int}   # Candidate children rules
 end
 
 """
-    apriori(txns::Transactions, min_support::Union{Int,Float64}, max_length::Int)::DataFrame
-
+    apriori(
+        txns::Transactions,
+        min_support::Union{Int,Float64},
+        min_confidence::Float64=0.0,
+        max_length::Int=0
+    )::DataFrame
 
 Identify association rules in a transactional dataset using the A Priori Algorithm
 
@@ -40,7 +45,8 @@ Identify association rules in a transactional dataset using the A Priori Algorit
 - `txns::Transactions`: A `Transactions` object containing the dataset to mine.
 - `min_support::Union{Int,Float64}`: The minimum support threshold. If an `Int`, it represents 
   the absolute support. If a `Float64`, it represents relative support.
-- `max_length::Int`: The maximum length of the rules to be generated.
+- `min_confidence::Float64`: The minimum confidence percentage for returned rules.
+- `max_length::Int`: The maximum length of the rules to be generated. Length of 0 searches for all rules.
 
 # Returns
 A DataFrame containing the discovered association rules with the following columns:
@@ -54,111 +60,113 @@ A DataFrame containing the discovered association rules with the following colum
 - `Length`: The number of items in the association rule.
 
 # Description
-
 The Apriori algorithm employs a breadth-first, level-wise search strategy to discover 
 frequent itemsets. It starts by identifying frequent individual items and iteratively 
 builds larger itemsets by combining smaller frequent itemsets. At each iteration, it 
-generates candidate itemsets of size k from itemsets of size k-1, then prunes candidates 
-that have any infrequent subset. 
+generates candidate itemsets of size k from itemsets of size k-1, then prunes infrequent candidates and their subsets. 
 
 The algorithm uses the downward closure property, which states that any subset of a frequent itemset must also be frequent. This is the defining pruning technique of A Priori.
 Once all frequent itemsets up to the specified maximum length are found, the algorithm generates association rules and 
 calculates their support, confidence, and other metrics.
 
-# Example
+# Examples
 ```julia
 txns = Txns("transactions.txt", ' ')
 
-# Find rules with 5% min support and max length of 3
-result = apriori(txns, 0.05, 3)
+# Find all rules with 5% min support and max length of 3
+result = apriori(txns, 0.05, 0.0, 3)
 
-# Find rules with with at least 5,000 instances and max length of 3
-result = apriori(txns, 5_000, 3)
+# Find rules with with at least 5,000 instances and minimum confidence of 50%
+result = apriori(txns, 5_000, 0.5)
 ```
 
 # References
 Agrawal, Rakesh, and Ramakrishnan Srikant. “Fast Algorithms for Mining Association Rules in Large Databases.” In Proceedings of the 20th International Conference on Very Large Data Bases, 487–99. VLDB ’94. San Francisco, CA, USA: Morgan Kaufmann Publishers Inc., 1994.
 """
-function apriori(txns::Transactions, min_support::Union{Int,Float64}, max_length::Int)::DataFrame
-    
-    function siblings(items::AbstractArray{Int}, value::Int, lineage::Vector{Int})
-        return setdiff(items, vcat(lineage, value))
-    end
-
+function apriori(txns::Transactions, min_support::Union{Int,Float64}, min_confidence::Float64=0.0, max_length::Int=0)::DataFrame
     function rulehash(s::Arule)
         return hash(vcat([getfield(s, f) for f in fieldnames(typeof(s))]))
     end
 
-    baselen = size(txns.matrix, 1)
-    basenum = vec(sum(txns.matrix, dims=1))
-    min_support = min_support isa Float64 ? ceil(Int, min_support * baselen) : min_support
+    n_transactions = txns.n_transactions
+    basenum = vec(count(txns.matrix, dims=1))
+    min_support = min_support isa Float64 ? ceil(Int, min_support * n_transactions) : min_support
 
     items = findall(basenum .>= min_support)
-    subtxns = txns.matrix[:, items]
-
+    subtxns = BitMatrix(txns.matrix[:, items])
     rules = Vector{Arule}()
 
+    initials = Vector{Arule}()
     for (index, item) in enumerate(items)
         rule = Arule(
-            Int[], # LHS
-            index, # RHS
-            basenum[item], # N
-            baselen, # Coverage (baselen for base nodes)
-            [index], # Lineage
-            siblings(1:length(items), index, Int[]) # Candidate Nodes
+            Int[],                             
+            index,                             
+            basenum[item],                     
+            n_transactions,
+            basenum[item] / n_transactions,
+            [index],
+            setdiff(1:length(items), index)
         )
-        push!(rules, rule)
+        push!(initials, rule)
     end
+    filter!((x -> (x.conf >= min_confidence)), initials)
+    append!(rules, initials)
 
-    if max_length > 1
-        parents = rules
-        for k in 2:max_length
-            levelrules = [Arule[] for _ in 1:Threads.nthreads()]
-            @sync begin
-                for parent in parents
-                    Threads.@spawn begin
-                        mask = vec(all(subtxns[:, parent.lin], dims=2))
-                        subtrans = subtxns[mask, :]
+    function apriori!(rules, parents, k)
+        if isempty(parents) || (max_length > 0 && k > max_length)
+            return rules
+        end
 
-                        subnum = vec(sum(subtrans, dims=1))
-                        subitems = findall(subnum .>= min_support)
-                        subitems = filter(x -> (x in parent.cand), subitems)
-                        
-                        for i in subitems
-                            subrule = Arule(
-                                parent.lin, # LHS
-                                i, # RHS
-                                subnum[i], # N
-                                parent.n, # Coverage (parent support)
-                                sort(vcat(parent.lin, i)), # lineage
-                                siblings(subitems, i, parent.lin) # Potential Next Nodes
-                            )
-                            push!(levelrules[Threads.threadid()], subrule)
-                        end
+        levelrules = [Arule[] for _ in 1:nthreads()]
+
+        @sync begin
+            for parent in parents
+                @spawn begin
+                    mask = vec(all(view(subtxns,:, parent.lin), dims=2))
+                    subtrans = subtxns[mask, :]
+
+                    subnum = vec(count(subtrans, dims=1))
+                    subitems = findall(subnum .>= min_support)
+                    subitems = filter(x -> (x in parent.cand), subitems)
+                    
+                    for i in subitems
+                        subrule = Arule(
+                            parent.lin,
+                            i,
+                            subnum[i],
+                            parent.n,
+                            subnum[i] / parent.n,
+                            sort(vcat(parent.lin, i)),
+                            setdiff(subitems, vcat(i, parent.lin))
+                        )
+                        push!(levelrules[Threads.threadid()], subrule)
                     end
                 end
             end
-            
-            unique_dict = Dict{UInt64, Arule}()
-            for rule in vcat(levelrules...)
-                rule_hash = rulehash(rule)
-                unique_dict[rule_hash] = rule
-            end
-            unique_rules = collect(values(unique_dict))
-
-            append!(rules, unique_rules)
-            parents = unique_rules
         end
+
+        unique_dict = Dict{UInt64, Arule}()
+        for rule in vcat(levelrules...)
+            rule_hash = rulehash(rule)
+            unique_dict[rule_hash] = rule
+        end
+        unique_rules = collect(values(unique_dict))
+        new_parents = unique_rules
+        filter!((x -> (x.conf >= min_confidence)), unique_rules)
+        append!(rules, unique_rules)
+
+        apriori!(rules, new_parents, k + 1)
     end
 
-    # Convert rules to DataFrame and calculate metrics
+    apriori!(rules, initials, 2)
+
     df = DataFrame(
         LHS = [RuleMiner.getnames([items[i] for i in rule.lhs], txns) for rule in rules],
         RHS = [txns.colkeys[items[rule.rhs]] for rule in rules],
-        Support = [rule.n / baselen for rule in rules],
-        Confidence = [rule.n / rule.cov for rule in rules],
-        Coverage = [rule.cov / baselen for rule in rules],
-        Lift = [(rule.n / baselen) / ((rule.cov / baselen) * (basenum[items[rule.rhs]] / baselen)) for rule in rules],
+        Support = [rule.n / n_transactions for rule in rules],
+        Confidence = [rule.conf for rule in rules],
+        Coverage = [rule.cov / n_transactions for rule in rules],
+        Lift = [(rule.n / n_transactions) / ((rule.cov / n_transactions) * (basenum[items[rule.rhs]] / n_transactions)) for rule in rules],
         N = [rule.n for rule in rules],
         Length = [length(rule.lin) for rule in rules]
     )

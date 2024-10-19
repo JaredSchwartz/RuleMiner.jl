@@ -15,9 +15,8 @@ rule_N = [3, 3, 3, 3, 4, 4, 5, 5]
 rule_Length = [1, 1, 1, 1, 2, 2, 1, 1]
 
 @testset "apriori.jl" begin
-
     @testset "percentage support" begin
-        rules = apriori(data,rule_perc_sup,rule_max_len)
+        rules = apriori(data,rule_perc_sup,0.0,rule_max_len)
         sorted = sort(rules,[:Support,:RHS])
         @test sorted.LHS == rule_LHS
         @test sorted.RHS == rule_RHS
@@ -28,9 +27,8 @@ rule_Length = [1, 1, 1, 1, 2, 2, 1, 1]
         @test sorted.N == rule_N
         @test sorted.Length == rule_Length
     end
-
     @testset "absolute support" begin
-        rules = apriori(data,rule_abs_sup,rule_max_len)
+        rules = apriori(data,rule_abs_sup,0.0,rule_max_len)
         sorted = sort(rules,[:Support,:RHS])
         @test sorted.LHS == rule_LHS
         @test sorted.RHS == rule_RHS
@@ -40,5 +38,10 @@ rule_Length = [1, 1, 1, 1, 2, 2, 1, 1]
         @test sorted.Lift ≈ rule_Lift
         @test sorted.N == rule_N
         @test sorted.Length == rule_Length
+    end
+    @testset "minimum confidence" begin
+        min_conf = 0.5
+        rules = apriori(data,rule_abs_sup,min_conf,rule_max_len)
+        @test minimum(rules[:,:Confidence]) >= min_conf
     end
 end
