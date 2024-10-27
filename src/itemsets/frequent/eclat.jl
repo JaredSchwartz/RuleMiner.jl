@@ -62,40 +62,30 @@ result = eclat(txns, 5_000)
 # References
 Zaki, Mohammed. “Scalable Algorithms for Association Mining.” Knowledge and Data Engineering, IEEE Transactions On 12 (June 1, 2000): 372–90. https://doi.org/10.1109/69.846291.
 """
-function eclat(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
+function eclat(txns::Transactions, min_support::Union{Int,Float64})#::DataFrame
     n_transactions = size(txns.matrix, 1)
     
     # Handle min_support as a float value
     min_support = min_support isa Float64 ? ceil(Int, min_support * n_transactions) : min_support
 
-    # Calculate initial supports and sort the columns
-    item_index = collect(1:size(txns.matrix, 2))
-    item_supports = Dict(zip(item_index, vec(sum(txns.matrix, dims=1))))
-    
-    frequent_items = [item for item in item_index if item_supports[item] >= min_support]
-    sorted_items = sort(frequent_items, by= x -> item_supports[x])
+    matrix, sorted_items = prune_matrix(txns.matrix, min_support)
 
     # Initialize results dictionary and threading lock
-    Results = Dict{Vector{Int}, Int}()
-    ThreadLock = ReentrantLock()
-
-    # Add single-item frequent itemsets to results
-    for item in sorted_items
-        Results[[item]] = item_supports[item]
-    end
+    results = Dict(zip([[i] for i in sorted_items], vec(sum(matrix,dims=1))))
+    thread_lock = ReentrantLock()
 
     # Define recursive eclat function and run it on the data
-    function eclat!(lineage::Vector{Int}, items::Vector{Int}, trans::Transactions, min_support::Int)
+    function eclat!(results::Dict{Vector{Int}, Int}, lineage::Vector{Int}, items::Vector{Int}, matrix::BitMatrix, min_support::Int)
         for (i, item) in enumerate(items)
             new_lineage = vcat(lineage, item)
-            support = sum(all(trans.matrix[:, new_lineage], dims=2))
+            support = sum(all(view(matrix, :, new_lineage), dims=2))
     
             # Skip this itemset if it does not meet minimum suppot
             support < min_support && continue
 
             # Add the Itemset to results
-            lock(ThreadLock) do
-                Results[new_lineage] = support
+            lock(thread_lock) do
+                results[sorted_items[new_lineage]] = support
             end
 
             # Generate new possible items
@@ -105,25 +95,15 @@ function eclat(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
             isempty(new_items) && continue
             
             # Recurse with new items
-            eclat!(new_lineage, new_items, trans, min_support)
+            eclat!(results, new_lineage, new_items, matrix, min_support)
         end
     end
 
     @sync begin
-        for (i, item) in enumerate(sorted_items)
-            Threads.@spawn eclat!([item], sorted_items[i+1:end], txns, min_support)
+        for item in eachindex(sorted_items)
+            Threads.@spawn eclat!(results, [item], collect(item+1:length(sorted_items)), matrix, min_support)
         end
     end
     
-    # Create the result DataFrame
-    result_df = DataFrame(
-        Itemset = [RuleMiner.getnames(itemset, txns) for itemset in keys(Results)],
-        Support = [support / n_transactions for support in values(Results)],
-        N = collect(values(Results)),
-        Length = [length(itemset) for itemset in keys(Results)]
-    )
-    
-    # Sort results by support in descending order
-    sort!(result_df, :N, rev=true)
-    return result_df
+    return make_itemset_df(results,txns)
 end

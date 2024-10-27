@@ -92,8 +92,7 @@ function apriori(txns::Transactions, min_support::Union{Int,Float64}, min_confid
     basenum = vec(count(txns.matrix, dims=1))
     min_support = min_support isa Float64 ? ceil(Int, min_support * n_transactions) : min_support
 
-    items = findall(basenum .>= min_support)
-    subtxns = BitMatrix(txns.matrix[:, items])
+    subtxns, items = RuleMiner.prune_matrix(txns.matrix,min_support)
     rules = Vector{Arule}()
 
     initials = Vector{Arule}()

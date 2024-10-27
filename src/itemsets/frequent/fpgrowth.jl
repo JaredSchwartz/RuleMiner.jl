@@ -108,15 +108,5 @@ function fpgrowth(data::Union{Transactions,FPTree}, min_support::Union{Int,Float
     # Mine frequent sets
     fpgrowth!(Results,tree, Int[], min_support)
     
-    # Create the result DataFrame
-    result_df = DataFrame(
-        Itemset = [data.colkeys[itemset] for itemset in keys(Results)],
-        Support = [support / n_transactions for support in values(Results)],
-        N = collect(values(Results)),
-        Length = [length(itemset) for itemset in keys(Results)]
-    )
-    
-    # Sort results by support in descending order
-    sort!(result_df, :N, rev=true)
-    return result_df
+    return RuleMiner.make_itemset_df(Results, data)
 end

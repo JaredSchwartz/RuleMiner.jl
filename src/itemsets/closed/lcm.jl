@@ -66,69 +66,57 @@ function LCM(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
     # Handle min_support as a float value
     min_support = min_support isa Float64 ? ceil(Int, min_support * n_transactions) : min_support
 
-    # Create tidsets (transaction ID sets) for each item
-    tidsets = [BitSet(findall(txns.matrix[:,col])) for col in 1:n_items]
-    supports = vec(sum(txns.matrix, dims=1))
-
-    # Sort items by support in descending order, keeping only frequent items
-    sorted_items = sort(findall(s -> s >= min_support, supports), by=i -> supports[i], rev=true)
-
+    matrix, sorted_items = prune_matrix(txns.matrix, min_support)
+    
     # Dictionary to store closed itemsets and their supports
-    Results = Dict{Vector{Int}, Int}()
-
+    results = Dict{Vector{Int}, Int}()
     ThreadLock = ReentrantLock()
-
-    function lcm!(closed_itemsets::Dict{Vector{Int}, Int}, current::Vector{Int}, tidset::BitSet, dict_lock::ReentrantLock)
-        closure = findall(i -> length(intersect(tidset, tidsets[i])) == length(tidset), 1:n_items)
-        support = length(tidset)
+    
+    function lcm!(closed_itemsets::Dict{Vector{Int}, Int}, current::Vector{Int}, rows::BitVector, dict_lock::ReentrantLock)
+        # Get closure of current itemset
+        closed = sorted_items[closure(matrix, current)]  # Map back to original indices
+        support = count(rows)
         
         lock(dict_lock) do
             # If we've seen this closure with equal or higher support, skip it
-            (haskey(closed_itemsets, closure) && closed_itemsets[closure] >= support) && return
-
+            (haskey(closed_itemsets, closed) && closed_itemsets[closed] >= support) && return
+            
             # Add Closure to Dict
-            if !isempty(closure)
-                closed_itemsets[closure] = support
+            if !isempty(closed)
+                closed_itemsets[closed] = support
             end
         end
         
+        # Get current item's position in sorted_items for comparison
+        curr_pos = isempty(current) ? 0 : findfirst(==(current[end]), 1:size(matrix, 2))
+        
         # Try extending the itemset with each frequent item
-        for item in sorted_items
-
+        for new_pos in eachindex(sorted_items)
+            orig_item = sorted_items[new_pos]
+            
             # Skip if the item is already in the closure
-            item ∈ closure && continue
-
+            orig_item ∈ closed && continue
+            
             # Skip if the item comes before the last item in the current itemset
-            item <= (isempty(current) ? 0 : current[end]) && continue
+            new_pos <= curr_pos && continue
             
-            # Compute the new tidset for the extended itemset
-            new_tidset = intersect(tidset, tidsets[item])
-
-            # Skip if the new tidset doesn't meet minimum support
-            length(new_tidset) < min_support && continue
+            # Compute the new rows that contain both the current itemset and the new item
+            new_rows = rows .& matrix[:, new_pos]
             
-            # Recurse with new tidset and itemset
-            lcm!(closed_itemsets, vcat(current, item), new_tidset, dict_lock)
+            # Skip if the new rows don't meet minimum support
+            count(new_rows) < min_support && continue
+            
+            # Recurse with new rows and itemset
+            lcm!(closed_itemsets, vcat(current, new_pos), new_rows, dict_lock)
         end
     end
-
+    
     # Start the LCM process with size-1 itemsets
     @sync begin
-        for item in sorted_items
-            Threads.@spawn lcm!(Results, [item], tidsets[item], ThreadLock)
+        for pos in 1:length(sorted_items)
+            Threads.@spawn lcm!(results, [pos], matrix[:, pos], ThreadLock)
         end
     end
-
-    # Convert results to a DataFrame
-    result = DataFrame(
-        Itemset = [RuleMiner.getnames(itemset, txns) for itemset in keys(Results)],
-        Support = [support / n_transactions for support in values(Results)],
-        N = collect(values(Results)),
-        Length = [length(itemset) for itemset in keys(Results)]
-    )
-
-    # Sort results by support in descending order
-    sort!(result, :N, rev=true)
-
-    return result
+    
+    return make_itemset_df(results, txns)
 end

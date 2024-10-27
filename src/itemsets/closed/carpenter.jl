@@ -66,14 +66,8 @@ function carpenter(txns::Transactions, min_support::Union{Int,Float64})
     # Handle min_support as a float value
     min_support = min_support isa Float64 ? ceil(Int, min_support * n_transactions) : min_support
     
-    # Create tidsets (transaction ID sets) for each item
-    tidsets = [BitSet(findall(txns.matrix[:,col])) for col in 1:n_items]
-    supports = vec(sum(txns.matrix, dims=1))
-
-    # Create vectors of all items and all frequent items for mining
-    allitems = collect(1:n_items)
-    frequent_items = findall(supports .>= min_support)
-
+    matrix, sorted_items = RuleMiner.prune_matrix(txns.matrix, min_support)
+    
     # Initialize results dictionary and threading lock
     Results = Dict{Vector{Int}, Int}()
     ThreadLock = ReentrantLock()
@@ -82,50 +76,39 @@ function carpenter(txns::Transactions, min_support::Union{Int,Float64})
         # Pruning 3: Early return if itemset is already present in the output
         haskey(closed_itemsets, X) && return
         
-        # Find transactions with the itemset and calculate support
-        tidset_X = length(X) == 1 ? tidsets[X[1]] : intersect(tidsets[X]...)
-        support_X = length(tidset_X)
+        # Get closure of current itemset and map back to original indices
+        X_pos = Vector{Int}(findall(in(X), sorted_items))
+        closed_pos = RuleMiner.closure(matrix, X_pos)
+        closed = sorted_items[closed_pos]
         
-        # Pruning 1: Early return if the itemset is not frequent
-        support_X < min_support && return
-    
-        # Pruning 2: Find items that can be added without changing support
-        Y = filter(i -> length(intersect(tidset_X, tidsets[i])) == support_X, R)
-
-        # Add X to itemsets if it's closed (Y is empty)
-        if isempty(Y) 
+        # Calculate support
+        rows = vec(all(view(matrix, :, X_pos), dims=2))
+        support = count(rows)
+        
+        # Pruning 1: Early return if not frequent
+        support < min_support && return
+        
+        # Pruning 2: Add closure to results if not empty
+        if !isempty(closed)
             lock(Lock) do
-                closed_itemsets[X] = support_X
-            end
-        # If Y is not empty, add the itemset's closure (X ∪ Y)
-        else 
-            lock(Lock) do
-                closed_itemsets[sort(vcat(X, Y))] = support_X
+                closed_itemsets[closed] = support
             end
         end
         
         # Recursive enumeration
-        for i in setdiff(R, Y)
-            carpenter!(closed_itemsets, sort(vcat(X, i)), setdiff(R, [i]), Lock)
+        remaining = filter(i -> i ∉ closed, R)
+        for i in remaining
+            carpenter!(closed_itemsets, sort(vcat(X, i)), filter(>(i), remaining), Lock)
         end
     end
-
+    
     # Parallel Processing of initial itemsets
     @sync begin
-        for item in frequent_items
-            Threads.@spawn carpenter!(Results, [item], setdiff(allitems, [item]), ThreadLock)
+        for item in sorted_items
+            remaining_items = filter(x -> x > item, sorted_items)
+            Threads.@spawn carpenter!(Results, [item], remaining_items, ThreadLock)
         end
     end
     
-    # Create the result DataFrame
-    result_df = DataFrame(
-        Itemset = [RuleMiner.getnames(itemset, txns) for itemset in keys(Results)],
-        Support = [support / n_transactions for support in values(Results)],
-        N = collect(values(Results)),
-        Length = [length(itemset) for itemset in keys(Results)]
-    )
-    
-    # Sort results by support in descending order
-    sort!(result_df, :N, rev=true)
-    return result_df
+    return RuleMiner.make_itemset_df(Results, txns)
 end
