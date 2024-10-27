@@ -300,3 +300,43 @@ function txns_to_df(txns::SeqTxns, index::Bool = true)::DataFrame
     
     return df
 end
+
+"""
+    prune_matrix(matrix::SparseMatrixCSC, min_support::Int) -> Tuple{BitMatrix, Vector{Int}}
+
+Filter and sort sparse matrix columns based on minimum support threshold.
+
+# Arguments
+- `matrix::SparseMatrixCSC`: A sparse boolean matrix where rows represent transactions and columns
+   represent items. A true value at position (i,j) indicates item j is present in transaction i.
+- `min_support::Int`: The minimum absolute support threshold. Columns with fewer than this number
+   of true values will be removed.
+
+# Returns
+A tuple containing:
+- `BitMatrix`: A pruned view of the matrix containing only frequent columns, converted to a BitMatrix
+- `Vector{Int}`: A vector of column indices corresponding to the frequent columns, sorted by their sums
+
+# Description
+This helper function performs two key preprocessing steps for frequent pattern mining:
+1. Removes infrequent columns (pruning): Filters out columns whose sum is less than the minimum
+   support threshold
+2. Sorts columns by frequency: Reorders the remaining columns based on their sums in ascending order
+
+The pruned matrix is returned as a BitMatrix for efficient boolean operations in pattern mining algorithms.
+
+# Example
+```julia
+txns = Txns(sparse([1 1 0; 1 0 1; 0 1 1]), ["A", "B", "C"], ["I1", "I2", "I3"])
+matrix, indices = prune_matrix(txns, 2)
+```
+"""
+function prune_matrix(matrix::SparseMatrixCSC, min_support::Int)
+    supports = sum(matrix, dims=1)
+    sorted_items = [i for i in axes(matrix,2) if supports[1,i] >= min_support]
+    sort!(sorted_items, by= x -> supports[1,x])
+    
+    matrix = view(matrix,:, sorted_items) |> BitMatrix
+
+    return matrix[vec(any(matrix, dims=2)), :], sorted_items
+end

@@ -63,84 +63,80 @@ result = genmax(txns, 5_000)
 Gouda, Karam, and Mohammed J. Zaki. “GenMax: An Efficient Algorithm for Mining Maximal Frequent Itemsets.” Data Mining and Knowledge Discovery 11, no. 3 (November 1, 2005): 223–42. https://doi.org/10.1007/s10618-005-0002-x.
 """
 function genmax(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
-    n_transactions, n_items = size(txns.matrix)
     
     # Handle min_support as a float value
-    min_support = min_support isa Float64 ? ceil(Int, min_support * n_transactions) : min_support
+    min_support = min_support isa Float64 ? ceil(Int, min_support * txns.n_transactions) : min_support
 
-    # Calculate initial supports for each item
-    item_supports = Dict(i => sum(txns.matrix[:, i]) for i in 1:n_items)
+    # Get pruned matrix and sorted items
+    matrix, sorted_items = RuleMiner.prune_matrix(txns.matrix, min_support)
     
-    # Sort items by support in descending order and filter for frequent items
-    sorted_items = sort(collect(keys(item_supports)), by=i -> item_supports[i], rev=true)
-    frequent_items = filter(i -> item_supports[i] >= min_support, sorted_items)
+    # Initialize results dictionary and threading lock
+    results = Dict{Vector{Int}, Int}()
+    candidates = Dict{Vector{Int}, Int}()
+    thread_lock = ReentrantLock()
 
-    # Create BitSets for each frequent item's transactions
-    item_bitsets = [BitSet(findall(txns.matrix[:, i])) for i in frequent_items]
-
-    # Initialize the Maximal Frequent Itemsets (MFI) list and threading lock
-    Results = Vector{Vector{Int}}()
-    ThreadLock = ReentrantLock()
-
-    # Depth-First Search to find maximal frequent itemsets
-    function genmax!(itemset::Vector{Int}, start_idx::Int, tidset::BitSet)
+    function genmax!(itemset::Vector{Int}, start_idx::Int, rows::BitVector)
         local_maximal = true
         
-        for i in start_idx:length(frequent_items)
-            item = frequent_items[i]
-            new_tidset = intersect(tidset, item_bitsets[i])
+        for i in start_idx:size(matrix, 2)
+            # Calculate new support with additional item
+            new_rows = rows .& matrix[:, i]
+            new_support = count(new_rows)
             
             # Skip if the new itemset is not frequent
-            length(new_tidset) < min_support && continue
+            new_support < min_support && continue
             
             local_maximal = false
-            new_itemset = push!(copy(itemset), item)
-            genmax!(new_itemset, i + 1, new_tidset)
+            new_itemset = push!(copy(itemset), i)
+            genmax!(new_itemset, i + 1, new_rows)
         end
         
         # If itemset is empty or not locally maximal, return
         (isempty(itemset) || !local_maximal) && return
         
-        lock(ThreadLock) do
-            push!(Results, itemset)
+        # Map positions back to original item indices
+        orig_itemset = sorted_items[itemset]
+        support = count(rows)
+        
+        lock(thread_lock) do
+            candidates[orig_itemset] = support
         end
     end
 
     # Start the depth-first search in parallel
     @sync begin
-        for (i, item) in enumerate(frequent_items)
-            Threads.@spawn genmax!([item], i + 1, item_bitsets[i])
+        for i in 1:length(sorted_items)
+            Threads.@spawn begin
+                initial_rows = matrix[:, i]
+                initial_support = count(initial_rows)
+                
+                # Only process if it meets minimum support
+                if initial_support >= min_support
+                    genmax!([i], i + 1, initial_rows)
+                end
+            end
         end
     end
 
-    # Filter candidates to get final maximal sets
-    sort!(Results, by=length, rev=true)
-    maximal = trues(length(Results))
-    
-    for i in 1:length(Results)
-        #Skip if the item has already been marked as non-maximal
-        !maximal[i] && continue
+    # Filter candidates to get maximal itemsets
+    for (itemset, support) in candidates
+        is_maximal = true
+        itemset_set = Set(itemset)
         
-        for j in 1:length(Results)
-            # Skip if item is being compared to its self or if [j] has been marked as non-maximal
-            (i == j || !maximal[j]) && continue
+        for (other_itemset, other_support) in candidates
+            itemset === other_itemset && continue
             
-            # Check if Results[j] is a subset of Results[i] and mark it not maximal if it is
-            Results[j] ⊊ Results[i] && (maximal[j] = false)
+            if issubset(itemset_set, Set(other_itemset))
+                is_maximal = false
+                break
+            end
+        end
+        
+        # Add to results if maximal
+        if is_maximal
+            results[itemset] = support
         end
     end
 
-    result = Results[maximal]
-
-    # Create output DataFrame
-    df = DataFrame(
-        Itemset = [RuleMiner.getnames(itemset, txns) for itemset in result],
-        Support = [length(intersect([item_bitsets[findfirst(==(item), frequent_items)] for item in itemset]...)) / n_transactions for itemset in result],
-        N = [length(intersect([item_bitsets[findfirst(==(item), frequent_items)] for item in itemset]...)) for itemset in result],
-        Length = [length(itemset) for itemset in result]
-    )
-
-    # Sort by length (descending) and then by support (descending)
-    sort!(df, [:Length, :Support], rev=true)
-    return df
+    return RuleMiner.make_itemset_df(results, txns)
 end

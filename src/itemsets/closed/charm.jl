@@ -58,70 +58,72 @@ Zaki, Mohammed, and Ching-Jui Hsiao. “CHARM: An Efficient Algorithm for Closed
 """
 function charm(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
     n_transactions, n_items = size(txns.matrix)
-
+    
     # Handle min_support as a float value
     min_support = min_support isa Float64 ? ceil(Int, min_support * n_transactions) : min_support
-    
-    # Create tidsets (transaction ID sets) for each item
-    tidsets = [BitSet(findall(txns.matrix[:,col])) for col in 1:n_items]
-    supports = vec(sum(txns.matrix,dims=1))
 
-    # Sort items by support in ascending order, keeping only frequent items
-    item_order = sort(findall(s -> s >= min_support, supports), by=i -> supports[i])
+    # Get pruned matrix and sorted items
+    matrix, sorted_items = RuleMiner.prune_matrix(txns.matrix, min_support)
     
     # Initialize results dictionary and threading lock
     Results = Dict{Vector{Int}, Int}()
     ThreadLock = ReentrantLock()
     
-    function charm!(closed_itemsets::Dict{Vector{Int}, Int}, prefix::Vector{Int}, eq_class::Vector{Int})
-        for (i, item) in enumerate(eq_class)
-            
+    function charm!(closed_itemsets::Dict{Vector{Int}, Int}, prefix::Vector{Int}, eq_class::Vector{Int}, rows::BitVector)
+        for (i, pos) in enumerate(eq_class)
             # Create new itemset by adding current item to prefix
-            new_itemset = vcat(prefix, item)
-            new_tidset = intersect(tidsets[new_itemset]...)
-            support = length(new_tidset)
+            new_itemset = vcat(prefix, pos)
+            new_rows = rows .& matrix[:, pos]
+            support = count(new_rows)
             
             # Skip infrequent itemsets
             support < min_support && continue
             
+            # Initialize new equivalence class
             new_eq_class = Int[]
+            
+            # Process remaining items in current equivalence class
             for j in (i+1):length(eq_class)
-
-                # Generate itemset, tidset, and support for new items in the next eq class
-                other_item = eq_class[j]
-                other_tidset = intersect(new_tidset, tidsets[other_item])
-                other_support = length(other_tidset)
+                other_pos = eq_class[j]
+                
+                # Calculate intersection with the other item
+                other_rows = new_rows .& matrix[:, other_pos]
+                other_support = count(other_rows)
                 
                 # Skip infrequent items
                 other_support < min_support && continue
-
+                
                 if support == other_support
                     # If supports are equal, add item to current itemset
-                    push!(new_itemset, other_item)
+                    push!(new_itemset, other_pos)
                 else
-                    # Otherwise, add to new equivalence class for further processing
-                    push!(new_eq_class, other_item)
+                    # Otherwise, add to new equivalence class
+                    push!(new_eq_class, other_pos)
                 end
             end
             
-            # Update closed itemsets list, ensuring thread safety
+            # Map positions back to original item indices
+            orig_itemset = sorted_items[new_itemset]
+            
+            # Update closed itemsets list with thread safety
             lock(ThreadLock) do
-                update_closed_itemsets!(closed_itemsets, new_itemset, support)
+                update_closed_itemsets!(closed_itemsets, orig_itemset, support)
             end
             
             # Recursively process new equivalence class if non-empty
-            !isempty(new_eq_class) && charm!(closed_itemsets, new_itemset, new_eq_class)
+            !isempty(new_eq_class) && charm!(closed_itemsets, new_itemset, new_eq_class, new_rows)
         end
     end
-
+    
     # Helper function to update closed itemsets
-    function update_closed_itemsets!(closed_itemsets, new_itemset, support)
+    function update_closed_itemsets!(closed_itemsets::Dict{Vector{Int}, Int}, new_itemset::Vector{Int}, support::Int)
         new_set = Set(new_itemset)
+        
+        # Check against existing closed itemsets
         for (existing_itemset, existing_support) in closed_itemsets
-            
             # Only compare itemsets with equal support
             support != existing_support && continue
-
+            
             existing_set = Set(existing_itemset)
             
             # If new itemset is a subset of an existing one, it's not closed
@@ -137,27 +139,25 @@ function charm(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
         closed_itemsets[new_itemset] = support
     end
     
-    # Add single-item frequent itemsets
-    for item in item_order
-        Results[[item]] = supports[item]
+    # Process single items and add to results
+    for (pos, item) in enumerate(sorted_items)
+        Results[[item]] = count(matrix[:, pos])
     end
     
     # Parallel processing of top-level equivalence classes
     @sync begin
-        for (i, item) in enumerate(item_order)
-            Threads.@spawn charm!(Results, [item], item_order[i+1:end])
+        for (i, pos) in enumerate(1:length(sorted_items))
+            Threads.@spawn begin
+                # Get initial rows for this item
+                initial_rows = matrix[:, pos]
+                
+                # Only process if it meets minimum support
+                if count(initial_rows) >= min_support
+                    charm!(Results, [pos], collect((i+1):length(sorted_items)), initial_rows)
+                end
+            end
         end
     end
     
-    # Create the result DataFrame
-    result_df = DataFrame(
-        Itemset = [RuleMiner.getnames(itemset, txns) for itemset in keys(Results)],
-        Support = [support / n_transactions for support in values(Results)],
-        N = collect(values(Results)),
-        Length = [length(itemset) for itemset in keys(Results)]
-    )
-    
-    # Sort results by support in descending order
-    sort!(result_df, :N, rev=true)
-    return result_df
+    return RuleMiner.make_itemset_df(Results, txns)
 end

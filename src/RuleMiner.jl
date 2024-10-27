@@ -62,6 +62,7 @@ export apriori
 include("itemsets/frequent/eclat.jl")
 include("itemsets/frequent/fpgrowth.jl")
 include("itemsets/frequent/recovery.jl")
+include("itemsets/itemset_utils.jl")
 
 export eclat
 export fpgrowth

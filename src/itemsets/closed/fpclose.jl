@@ -126,14 +126,5 @@ function fpclose(data::Union{Transactions,FPTree}, min_support::Union{Int,Float6
     # Start the mining process
     fpclose!(Results, tree, Int[], min_support)
 
-    df = DataFrame(
-        Itemset = [data.colkeys[itemset] for itemset in keys(Results)], 
-        Support = [support / n_transactions for support in values(Results)],
-        N = collect(values(Results)),
-        Length = [length(itemset) for itemset in keys(Results)]
-    )
-    
-    sort!(df, [:Length, :N], rev=[false, true])
-    
-    return df
+    return RuleMiner.make_itemset_df(Results, data)
 end

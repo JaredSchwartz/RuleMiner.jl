@@ -136,15 +136,5 @@ function fpmax(data::Union{Transactions,FPTree}, min_support::Union{Int,Float64}
         is_maximal && (Results[itemset] = support)
     end
 
-    # Create the result DataFrame
-    result_df = DataFrame(
-        Itemset = [data.colkeys[itemset] for itemset in keys(Results)],
-        Support = [support / n_transactions for support in values(Results)],
-        N = collect(values(Results)),
-        Length = [length(itemset) for itemset in keys(Results)]
-    )
-    
-    # Sort results by length in descending order, then by support
-    sort!(result_df, [:Length, :Support], rev=true)
-    return result_df
+    return RuleMiner.make_itemset_df(Results, data)
 end
