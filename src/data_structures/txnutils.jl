@@ -302,6 +302,62 @@ function txns_to_df(txns::SeqTxns, index::Bool = true)::DataFrame
 end
 
 """
+    fast_convert(S::SubArray{Bool, 2, <:SparseMatrixCSC{Bool}}) -> BitMatrix
+
+Efficiently convert a 2D sparse matrix view into a dense BitMatrix.
+
+# Arguments
+- `S::SubArray{Bool, 2, <:SparseMatrixCSC{Bool}}`: A view into a sparse boolean matrix,
+   created using `view()` or array indexing on a SparseMatrixCSC.
+
+# Returns
+- `BitMatrix`: A dense binary matrix containing the same values as the input view.
+
+# Description
+This function provides an optimized conversion from a sparse matrix view to a BitMatrix by:
+1. Directly accessing the underlying sparse matrix storage (colptr, rowval, nzval)
+2. Only iterating over non-zero elements
+3. Mapping parent matrix indices to view indices
+4. Avoiding temporary matrix allocations
+
+This is typically faster than the default conversion path, especially for large sparse
+matrices where most elements are false.
+# Example
+```julia
+using SparseArrays
+
+# Create a sparse matrix
+S = sparse([1 0 1; 1 1 0; 0 1 1])
+
+# Create a view of the first two rows and columns
+V = view(S, 1:2, 1:2)
+
+# Convert to BitMatrix
+B = fast_convert(V)
+# Returns BitMatrix:
+# 1 0
+# 1 1
+```
+"""
+function fast_convert(S::SubArray{Bool, 2, <:SparseMatrixCSC{Bool}})::BitMatrix
+    parent_mat = parent(S)
+    row_range, col_range = parentindices(S)
+    row_offset = first(row_range) - 1
+    
+    B = falses(size(S))
+    @inbounds for (j, parent_col) in enumerate(col_range)
+        for k in parent_mat.colptr[parent_col]:(parent_mat.colptr[parent_col+1]-1)
+            parent_row = parent_mat.rowval[k]
+            # Check if the row is within our view
+            if parent_row in row_range
+                B[parent_row - row_offset, j] = parent_mat.nzval[k]
+            end
+        end
+    end
+    return B
+end
+
+"""
     prune_matrix(matrix::SparseMatrixCSC, min_support::Int) -> Tuple{BitMatrix, Vector{Int}}
 
 Filter and sort sparse matrix columns based on minimum support threshold.
@@ -336,7 +392,7 @@ function prune_matrix(matrix::SparseMatrixCSC, min_support::Int)
     sorted_items = [i for i in axes(matrix,2) if supports[1,i] >= min_support]
     sort!(sorted_items, by= x -> supports[1,x])
     
-    matrix = view(matrix,:, sorted_items) |> BitMatrix
+    matrix = view(matrix,:, sorted_items) |> fast_convert
 
     return matrix[vec(any(matrix, dims=2)), :], sorted_items
 end
