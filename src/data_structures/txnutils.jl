@@ -341,16 +341,45 @@ B = fast_convert(V)
 """
 function fast_convert(S::SubArray{Bool, 2, <:SparseMatrixCSC{Bool}})::BitMatrix
     parent_mat = parent(S)
-    row_range, col_range = parentindices(S)
-    row_offset = first(row_range) - 1
+    _, col_range = parentindices(S)
     
-    B = falses(size(S))
-    @inbounds for (j, parent_col) in enumerate(col_range)
-        for k in parent_mat.colptr[parent_col]:(parent_mat.colptr[parent_col+1]-1)
-            parent_row = parent_mat.rowval[k]
-            # Check if the row is within our view
-            if parent_row in row_range
-                B[parent_row - row_offset, j] = parent_mat.nzval[k]
+    m, n = size(S)
+    B = falses(m, n)
+    chunks = unsafe_wrap(Array{UInt64}, pointer(B.chunks), length(B.chunks))
+    total_chunks = length(chunks)
+    
+    # Calculate chunks per thread, ensuring even distribution
+    num_threads = nthreads()
+    chunks_per_thread = cld(total_chunks, num_threads)
+    
+    @threads for thread_id in 1:num_threads
+        # Calculate chunk range for this thread
+        chunk_start = (thread_id - 1) * chunks_per_thread + 1
+        chunk_end = min(thread_id * chunks_per_thread, total_chunks)
+        
+        # Calculate bit range this thread is responsible for
+        bit_start = (chunk_start - 1) << 6
+        bit_end = (chunk_end << 6) - 1
+        
+        # Calculate which columns intersect with this bit range
+        col_start = bit_start ÷ m + 1
+        col_end = min(bit_end ÷ m + 1, n)
+        
+        # Process each column that intersects with this thread's chunks
+        @inbounds for (j, parent_col) in enumerate(col_range[col_start:col_end])
+            col_offset = (col_start + j - 2) * m
+            
+            # Process each nonzero in the column
+            for k in parent_mat.colptr[parent_col]:(parent_mat.colptr[parent_col+1]-1)
+                row = parent_mat.rowval[k]
+                abs_pos = col_offset + (row - 1)
+                
+                # Only process if this bit belongs to one of this thread's chunks
+                abs_pos < bit_start >= bit_end && continue
+
+                chunk_idx = abs_pos >> 6
+                bit_pos = abs_pos & 63
+                chunks[chunk_idx + 1] |= UInt64(1) << bit_pos
             end
         end
     end
