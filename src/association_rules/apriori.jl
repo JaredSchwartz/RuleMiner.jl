@@ -28,7 +28,128 @@ struct Arule
     cov::Int            # Coverage (parent support) value
     conf::Float64       # Confidence (n / cov)
     lin::Vector{Int}    # Lineage of the rule (LHS union RHS)
-    cand::Vector{Int}   # Candidate children rules
+end
+
+struct ThreadBuffers
+    mask::BitVector         # BitVector buffer for filtering rows 
+    lhs::Vector{Int}        # LHS buffer
+    lineage::Vector{Int}    # Lineage buffer
+    rules::Vector{Arule}    # Thread-local output buffer
+
+    ThreadBuffers(n_rows::Int) = new(
+        falses(n_rows),
+        Vector{Int}(),
+        Vector{Int}(),
+        Vector{Arule}()
+    )
+end
+
+# helper function to create the level one rules (k=1)
+function create_level_one_rules(items, basenum, n_transactions, min_confidence)
+    level_one = Set([i] for i in 1:length(items))
+    level_rules = Vector{Arule}()
+    sizehint!(level_rules, length(level_one))
+    
+    for lin in level_one
+        index = first(lin)
+        confidence = basenum[items[index]] / n_transactions
+        
+        confidence < min_confidence && continue
+        
+        rule = Arule(
+            Int[],
+            index,
+            basenum[items[index]],
+            n_transactions,
+            confidence,
+            collect(lin)
+        )
+        push!(level_rules, rule)
+    end
+    
+    return level_rules, level_one
+end
+
+# helper function to generate all candidates at a given k value
+function generate_candidates(current_level::Set{Vector{Int}}, k::Int, thread_buffers, candidate_chunks)
+    level_arr = collect(current_level)
+    
+    isempty(level_arr) && return Set{Vector{Int}}()
+    
+    # Clear previous candidate chunks
+    foreach(empty!, candidate_chunks)
+    
+    @sync begin
+        for i in 1:length(level_arr)
+            @spawn begin
+                tid = threadid()
+                local_candidates = candidate_chunks[tid]
+                buffer = thread_buffers[tid].lineage
+                
+                for j in (i+1):length(level_arr)
+                    # Early skip for non-matching prefixes
+                    if k > 2 && level_arr[i][1:k-2] != level_arr[j][1:k-2]
+                        continue
+                    end
+                    
+                    empty!(buffer)
+                    append!(buffer, level_arr[i])
+                    append!(buffer, level_arr[j])
+                    unique!(sort!(buffer))
+                    
+                    length(buffer) == k && push!(local_candidates, copy(buffer))
+                end
+            end
+        end
+    end
+    
+    # Combine all candidates
+    candidates = Set{Vector{Int}}()
+    for chunk in candidate_chunks
+        union!(candidates, chunk)
+    end
+    
+    return candidates
+end
+
+# helper function to generate arules based on candidates at k
+function process_candidate(lineage, subtxns, min_support, min_confidence, buf)
+    # Check support
+    fill!(buf.mask, true)
+    for item in lineage
+        buf.mask .&= view(subtxns, :, item)
+    end
+    support = count(buf.mask)
+    
+    support < min_support && return
+    
+    # Process each item as RHS
+    for i in 1:length(lineage)
+        empty!(buf.lhs)
+        append!(buf.lhs, lineage)
+        deleteat!(buf.lhs, i)
+        rhs = lineage[i]
+        
+        # Calculate confidence
+        fill!(buf.mask, true)
+        for item in buf.lhs
+            buf.mask .&= view(subtxns, :, item)
+        end
+        coverage = count(buf.mask)
+        confidence = support / coverage
+        
+        confidence < min_confidence && continue
+        
+        rule = Arule(
+            copy(buf.lhs),
+            rhs,
+            support,
+            coverage,
+            confidence,
+            copy(lineage)
+        )
+        push!(buf.rules, rule)
+    end
 end
 
 """
@@ -84,81 +205,52 @@ result = apriori(txns, 5_000, 0.5)
 Agrawal, Rakesh, and Ramakrishnan Srikant. “Fast Algorithms for Mining Association Rules in Large Databases.” In Proceedings of the 20th International Conference on Very Large Data Bases, 487–99. VLDB ’94. San Francisco, CA, USA: Morgan Kaufmann Publishers Inc., 1994.
 """
 function apriori(txns::Transactions, min_support::Union{Int,Float64}, min_confidence::Float64=0.0, max_length::Int=0)::DataFrame
-    function rulehash(s::Arule)
-        return hash(vcat([getfield(s, f) for f in fieldnames(typeof(s))]))
-    end
-
+    # Initial setup
     n_transactions = txns.n_transactions
     basenum = vec(count(txns.matrix, dims=1))
     min_support = min_support isa Float64 ? ceil(Int, min_support * n_transactions) : min_support
-
-    subtxns, items = RuleMiner.prune_matrix(txns.matrix,min_support)
-    rules = Vector{Arule}()
-
-    initials = Vector{Arule}()
-    for (index, item) in enumerate(items)
-        rule = Arule(
-            Int[],                             
-            index,                             
-            basenum[item],                     
-            n_transactions,
-            basenum[item] / n_transactions,
-            [index],
-            setdiff(1:length(items), index)
-        )
-        push!(initials, rule)
-    end
-    filter!((x -> (x.conf >= min_confidence)), initials)
-    append!(rules, initials)
-
-    function apriori!(rules, parents, k)
-        if isempty(parents) || (max_length > 0 && k > max_length)
-            return rules
-        end
-
-        levelrules = [Arule[] for _ in 1:nthreads()]
-
+    
+    subtxns, items = RuleMiner.prune_matrix(txns.matrix, min_support)
+    n_rows = size(subtxns, 1)
+    
+    # Initialize thread resources
+    thread_buffers = [ThreadBuffers(n_rows) for _ in 1:nthreads()]
+    candidate_chunks = [Set{Vector{Int}}() for _ in 1:nthreads()]
+    
+    # Process level one
+    level_rules, current_level = create_level_one_rules(items, basenum, n_transactions, min_confidence)
+    rules = copy(level_rules)
+    
+    # Main loop for level-wise processing
+    k = 2
+    while !isempty(current_level) && (max_length == 0 || k <= max_length)
+        candidates = generate_candidates(current_level, k, thread_buffers, candidate_chunks)
+        isempty(candidates) && break
+        
+        # Clear thread-local rule storage
+        foreach(buf -> empty!(buf.rules), thread_buffers)
+        
         @sync begin
-            for parent in parents
+            for lineage in candidates
                 @spawn begin
-                    mask = vec(all(view(subtxns,:, parent.lin), dims=2))
-                    subtrans = subtxns[mask, :]
-
-                    subnum = vec(count(subtrans, dims=1))
-                    subitems = findall(subnum .>= min_support)
-                    subitems = filter(x -> (x in parent.cand), subitems)
-                    
-                    for i in subitems
-                        subrule = Arule(
-                            parent.lin,
-                            i,
-                            subnum[i],
-                            parent.n,
-                            subnum[i] / parent.n,
-                            sort(vcat(parent.lin, i)),
-                            setdiff(subitems, vcat(i, parent.lin))
-                        )
-                        push!(levelrules[Threads.threadid()], subrule)
-                    end
+                    tid = threadid()
+                    process_candidate(lineage, subtxns, min_support, min_confidence, thread_buffers[tid])
                 end
             end
         end
-
-        unique_dict = Dict{UInt64, Arule}()
-        for rule in vcat(levelrules...)
-            rule_hash = rulehash(rule)
-            unique_dict[rule_hash] = rule
+        
+        # Combine thread-local rules
+        level_rules = Vector{Arule}()
+        for buf in thread_buffers
+            append!(level_rules, buf.rules)
         end
-        unique_rules = collect(values(unique_dict))
-        new_parents = unique_rules
-        filter!((x -> (x.conf >= min_confidence)), unique_rules)
-        append!(rules, unique_rules)
-
-        apriori!(rules, new_parents, k + 1)
+        append!(rules, level_rules)
+        
+        # Prepare for next level
+        current_level = Set(rule.lin for rule in level_rules)
+        k += 1
     end
-
-    apriori!(rules, initials, 2)
-
+    
     df = DataFrame(
         LHS = [RuleMiner.getnames([items[i] for i in rule.lhs], txns) for rule in rules],
         RHS = [txns.colkeys[items[rule.rhs]] for rule in rules],
