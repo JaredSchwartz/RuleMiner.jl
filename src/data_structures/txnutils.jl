@@ -84,43 +84,48 @@ counts = itemcounter(data, 'l', "o", "ll")
 # Returns [3, 2, 1]
 ```
 """
-function delimcounter(io::Vector{UInt8}, items::Union{Char, String}...)::Vector{Int}
-    # Group items by length
-    item_groups = Dict{Int, Vector{Vector{UInt8}}}()
-    item_indices = Dict{Vector{UInt8}, Int}()
-
-    for (index, item) in enumerate(items)
-        bytes = item isa String ? Vector{UInt8}(item) : UInt8[item]
-        push!(get!(item_groups, length(bytes), Vector{Vector{UInt8}}()), bytes)
-        item_indices[bytes] = index
-    end
-
-    # Initialize result vector
-    result = zeros(Int, length(items))
-
-    # Iterate through grouped items
-    for (item_length, group) in sort(collect(item_groups))
-        i = 1
-        while i <= length(io) - item_length + 1
-            for target_bytes in group
-                match = true
-                for j in 1:item_length
-                    if io[i+j-1] != target_bytes[j]
-                        match = false
-                        break
-                    end
-                end
-                if match
-                    result[item_indices[target_bytes]] += 1
-                    i += item_length - 1
-                    break
-                end
-            end
-            i += 1
+function delimcounter(io::Vector{UInt8}, byte_patterns::Vector{UInt8}...)::Vector{Int}
+    result = zeros(Int, length(byte_patterns) + 1)  # +1 for newlines
+    
+    i = 1
+    while i <= length(io)
+        # Check for newlines first
+        newline_len = check_newline(io, i)
+        if newline_len > 0
+            result[1] += 1  # Store newlines in first position
+            i += newline_len
+            continue
         end
+        
+        # Check each delimiter
+        matched = false
+        for (idx, bytes) in enumerate(byte_patterns)
+            if check_delim(io, i, bytes)
+                result[idx + 1] += 1
+                i += length(bytes) - 1
+                matched = true
+                break
+            end
+        end
+        
+        i += 1
     end
-
+    
     return result
+end
+
+function check_delim(mmap_array, pos, delim_bytes)
+    length(mmap_array) < pos + length(delim_bytes) - 1 && return false
+    return all(i -> mmap_array[pos + i - 1] == delim_bytes[i], 1:length(delim_bytes))
+end
+
+function check_newline(mmap_array, pos)
+    pos > length(mmap_array) && return 0
+    mmap_array[pos] == UInt8('\n') && return 1
+    pos + 1 <= length(mmap_array) && 
+    mmap_array[pos] == UInt8('\r') && 
+    mmap_array[pos + 1] == UInt8('\n') && return 2
+    return 0
 end
 
 """

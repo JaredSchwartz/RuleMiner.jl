@@ -151,7 +151,7 @@ struct SeqTxns <: Transactions
     
         io = Mmap.mmap(file)
         
-        est_lines, est_sets, est_items = RuleMiner.delimcounter(io, '\n', set_delimiter, item_delimiter)
+        est_lines, est_sets, est_items = RuleMiner.delimcounter(io, UInt8[set_delimiter], UInt8[item_delimiter])
         est_lines = est_lines + 1 - skiplines   # Est. lines is one more than num of line delims minus any skipped
         est_sets = est_sets + est_lines         # Line delims also act as set delims
         est_items = est_items + est_sets        # Set delims also act as item delims
