@@ -94,6 +94,13 @@ end
             @test sort(data.colkeys) == ["bread", "eggs", "milk"]
             @test isempty(data.linekeys)
         end
+        @testset "multi delim" begin
+            data = Txns(joinpath(@__DIR__,"files/frequent/data_multidelim.txt"),"||")
+            @test size(data.matrix) == (9,16)
+            @test sum(data.matrix) == 36
+            @test sort(data.colkeys) == item_vals
+            @test isempty(data.linekeys)
+        end
     end
 
     @testset "convert df" begin
@@ -169,23 +176,21 @@ end
             @test all(lines .== lines2)
         end
         @testset "Truncated Printing" begin
-            output = trunc_tester(data,15,30)
+            output = trunc_tester(data,13,30)
             expected_output = """
-            Txns with 9 transactions, 16 items, and 36 non-zero elements
-             Index │ Items
-            ───────┼──────────────────────
-                 1 │ milk, eggs, bread
-                 2 │ milk, eggs, butter,…
-                 3 │ milk, eggs, bacon,…
-                 4 │ bread, ham, turkey
-                 5 │ bread, ham, cheese,…
-                 6 │ beer, cheese,…
-                 7 │ milk, eggs, sugar
-                 8 │ milk, beer,…
-                 9 │ eggs, bacon, ham,…
+                Txns with 9 transactions, 16 items, and 36 non-zero elements
+                Index │ Items
+                ───────┼──────────────────────
+                    1 │ milk, eggs, bread
+                    2 │ milk, eggs, butter,…
+                    3 │ milk, eggs, bacon,…
+                    ⋮ │ ⋮
+                    7 │ milk, eggs, sugar
+                    8 │ milk, beer,…
+                    9 │ eggs, bacon, ham,…
             """
-            lines = [rstrip(line) for line in eachsplit(output,'\n')]
-            lines2 = [rstrip(line) for line in eachsplit(expected_output,'\n')]
+            lines = [strip(line) for line in eachsplit(strip(output),'\n')]
+            lines2 = [strip(line) for line in eachsplit(strip(expected_output),'\n')]
             @test all(lines .== lines2)
         end
     end
