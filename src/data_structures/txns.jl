@@ -132,13 +132,14 @@ struct Txns <: Transactions
         io = Mmap.mmap(file)
         whitespace_bytes = UInt8.([' ', '\t', '\n', '\v', '\f', '\r'])
         delim_bytes = Vector{UInt8}(string(item_delimiter))
-
+    
+        # Estimate required storage based on delimiter counts
         est_lines, est_items = delimcounter(io, delim_bytes)
         est_lines += 1 - skiplines
         est_items += est_lines
-
+    
+        # Pre-allocate storage structures
         KeyView = SubArray{UInt8,1,Vector{UInt8},Tuple{UnitRange{Int64}},true}
-        
         item_map = Dict{KeyView, UInt32}()
         rowkey_views = id_col ? Vector{KeyView}(undef, est_lines) : Vector{KeyView}()
         colkey_views = Vector{KeyView}()
@@ -152,17 +153,18 @@ struct Txns <: Transactions
         items_in_row = 0
         item_id = 0
         
-        # Skip initial lines
+        # Skip header lines if requested
         while skiplines > 0 && word_start <= len
-            newline_len = RuleMiner.check_newline(io, word_start)
+            newline_len = check_newline(io, word_start)
             newline_len > 0 && (skiplines -= 1; word_start += newline_len; continue)
             word_start += 1
         end
         
+        # Main parsing loop - process each field in the file
         while word_start <= len
             nlines != 0 && line_counter > nlines && break
         
-            # Handle newlines at current position
+            # Handle newline at current position if present
             newline_len = check_newline(io, word_start)
             if newline_len > 0
                 items_in_row > 0 && (line_counter += 1) 
@@ -171,7 +173,7 @@ struct Txns <: Transactions
                 continue
             end
         
-            # Find word end and scan for delims, newlines, and any non-whitespace characters
+            # Find end of current field by scanning until delimiter/newline
             word_end = word_start
             has_content = false
             while word_end <= len
@@ -181,12 +183,12 @@ struct Txns <: Transactions
                 word_end += 1
             end
             
-            # If no non-whitepace characters, then skip
+            # Skip empty/whitespace-only fields
             has_content || (word_start = word_end + 1; continue)
         
             word_view = @view io[word_start:word_end-1]
         
-            # Handle ID column
+            # Special handling for ID column at start of line
             if id_col && items_in_row == 0
                 @inbounds rowkey_views[line_counter] = word_view
                 items_in_row = 1
@@ -197,7 +199,7 @@ struct Txns <: Transactions
                 continue
             end
         
-            # Regular item case
+            # Process regular field - dedup and store
             items_in_row += 1
             item_counter += 1
             
@@ -212,26 +214,25 @@ struct Txns <: Transactions
                 word_start += length(delim_bytes)
             end
         end
-
+    
+        # Handle edge case for empty last line
         items_in_row == 0 && !id_col && (line_counter -= 1)
-
+    
+        # Finalize storage
         resize!(colvals, item_counter)
         resize!(rowvals, item_counter)
-
-        # Generate Matrix
+        
+        # Generate sparse matrix
         n = item_id
         m = line_counter
         colptr, rowval = RuleMiner.convert_csc!(colvals, rowvals, n)
         nzval = fill(true, item_counter)
-
         matrix = SparseMatrixCSC(m, n, colptr, rowval, nzval)
-
-        # Dereference colkeys
-        colkeys = unsafe_string.(pointer.(colkey_views),length.(colkey_views))
-
-        # Dereference rowkeys
-        rowkeys = unsafe_string.(pointer.(rowkey_views),length.(rowkey_views))
-
+    
+        # Convert views to strings
+        colkeys = unsafe_string.(pointer.(colkey_views), length.(colkey_views))
+        rowkeys = unsafe_string.(pointer.(rowkey_views), length.(rowkey_views))
+    
         return new(matrix, colkeys, rowkeys, m)
     end
 end
@@ -243,6 +244,7 @@ Base.first(txns::Txns) = txns[1]
 Base.first(txns::Txns, n::Integer) = [txns[i] for i in 1:min(n, txns.n_transactions)]
 Base.last(txns::Txns) = txns[end]
 Base.last(txns::Txns, n::Integer) = [txns[i] for i in max(1, txns.n_transactions-n+1):txns.n_transactions]
+
 function Base.getindex(txns::Txns, i::Integer)
     1 <= i <= length(txns) || throw(BoundsError(txns, i))
     items = findall(@view txns.matrix[i, :])
@@ -253,77 +255,69 @@ end
 function Base.show(io::IO, ::MIME"text/plain", txns::Txns)
     n_transactions, n_items = size(txns.matrix)
     n_nonzero = nnz(txns.matrix)
-
+    
     println(io, "Txns with $n_transactions transactions, $n_items items, and $n_nonzero non-zero elements")
 
-    # Get terminal size
+    # Terminal dimensions and display limits
     term_height, term_width = displaysize(io)
-    max_display_rows = min(term_height,40) - 8  # Reserve some lines for header and footer
-    
-    max_display_rows <= 0 && return
+    max_rows = min(term_height - 6, n_transactions, 40)  # -6 for margins and headers
+    max_rows <= 3 && return
 
-    # Determine rows to display
-    if n_transactions <= max_display_rows
-        rows_to_display = 1:n_transactions
+    # Select rows to display
+    if n_transactions <= max_rows
+        row_indices = 1:n_transactions
     else
-        half_display = div(max_display_rows - 1, 2)  # -1 to account for ellipsis row
-        rows_to_display = [1:half_display; (n_transactions - half_display +1):n_transactions]
+        half_rows = div(max_rows - 1, 2)
+        row_indices = [1:half_rows; (n_transactions - half_rows + 1):n_transactions]
     end
 
-    # Prepare data for visible rows
-    visible_data = Matrix{String}(undef, length(rows_to_display), 2)
-    
-    for (i, row) in enumerate(rows_to_display)
-        visible_data[i, 1] = !isempty(txns.linekeys) ? txns.linekeys[row] : string(row)
+    # Calculate column widths
+    indices = isempty(txns.linekeys) ? string.(row_indices) : txns.linekeys[row_indices]
+    index_width = max(5, length("Index"), maximum(length, indices))
+    available_width = max(20, term_width - index_width - 5)  # -5 for separators and padding
+
+    # Build (and truncate) item strings
+    item_strings = Vector{String}(undef, length(row_indices))
+    for (i, row) in enumerate(row_indices)
         items = txns.colkeys[findall(txns.matrix[row, :])]
-        visible_data[i, 2] = join(items, ", ")
+        isempty(items) && (item_strings[i] = ""; continue)
+        
+        str = join(items, ", ")
+        if length(str) ≤ available_width - 1
+            item_strings[i] = str
+        else
+            pos = findprev(',', str, available_width - 1)
+            item_strings[i] = isnothing(pos) ? "…" : str[1:pos] * "…"
+        end
     end
 
-    # Add ellipsis row if necessary
-    if n_transactions > max_display_rows
-        visible_data = vcat(
-            visible_data[1:half_display, :], 
+    # Create display matrix and add ellipsis if needed
+    display_data = hcat(indices, item_strings)
+    items_width = min(available_width, maximum(length, item_strings))
+    if n_transactions > max_rows
+        display_data = vcat(
+            display_data[1:half_rows, :],
             ["⋮" "⋮"],
-            visible_data[half_display+1:end, :]
+            display_data[half_rows+1:end, :]
         )
     end
 
-    # Calculate column widths based on visible data
-    index_width = max(length("Index"),length(string(n_transactions)), maximum(length, visible_data[:, 1]))
-    max_itemset_length = maximum(length, visible_data[:, 2])
-    
-    # Calculate the available width for the items column
-    available_width = term_width - index_width - 3  # -3 for column separator and padding
-    
-    # Set the items column width
-    items_width = min(max_itemset_length, available_width)
-
-    # Define table format with minimal required settings
+    # Display table
     tf = TextFormat(
-        up_intersection     = '─',
-        bottom_intersection = '─',
-        column              = '│',
-        row                 = '─',
-        hlines              = [:header]
+        up_intersection='─',
+        bottom_intersection='─',
+        column='│',
+        row='─',
+        hlines=[:header]
     )
 
-    # Custom formatter function to truncate items only if necessary
-    function truncate_items(data, i, j)
-        if j == 2 && length(data) > items_width
-            return data[1:prevind(data, items_width-2)] * "…"
-        end
-        return data
-    end
-
-    # Print the table
-    pretty_table(
-        io, visible_data, header=["Index", "Items"], tf=tf,
-        crop=:none, 
-        alignment=[:r, :l], 
+    pretty_table(io, display_data;
+        header=["Index", "Items"],
+        tf=tf,
+        crop=:none,
         show_row_number=false,
-        formatters=(truncate_items,),
         columns_width=[index_width, items_width],
+        alignment=[:r, :l],
         vlines=[1]
     )
-
 end
