@@ -1,8 +1,8 @@
-using Documenter, RuleMiner,DataFrames
+using Documenter, RuleMiner,DataFrames,DocumenterVitepress
 
 
 makedocs(
-    format = Documenter.HTML(prettyurls = haskey(ENV, "CI")),
+    format = DocumenterVitepress.MarkdownVitepress(repo = "github.com/JaredSchwartz/RuleMiner.jl"),
     sitename="RuleMiner.jl",
     pagesonly = true,
     draft = false,
@@ -20,6 +20,7 @@ makedocs(
     warnonly = [:missing_docs, :cross_references],
 )
 
-deploydocs(
-    repo = "github.com/JaredSchwartz/RuleMiner.jl.git",
+deploydocs(;
+    repo = "github.com/JaredSchwartz/RuleMiner.jl",
+    target = "build",
 )
