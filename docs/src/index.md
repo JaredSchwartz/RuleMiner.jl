@@ -18,7 +18,7 @@ hero:
       text: View on GitHub
       link: https://github.com/JaredSchwartz/RuleMiner.jl
   image:
-    src: /assets/logo.svg
+    src: ./assets/hero.svg
     alt: RuleMiner.jl logo
 
 features:
