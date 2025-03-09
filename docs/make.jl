@@ -8,14 +8,17 @@ makedocs(
     draft = false,
     pages=[
         "Home" => "index.md",
-        "Association Rule Mining" => "association_rules.md",
-        "Itemset Mining" => Any[
-            "Frequent Itemset Mining" => "frequent_itemsets.md",
-            "Closed Itemset Mining" => "closed_itemsets.md",
-            "Maximal Itemset Mining" => "maximal_itemsets.md",
+        "Tutorials" => Any[
+           "Getting Started" => "tutorials/getting_started.md"
         ],
-        "Transactions Objects" => "transactions.md",
-        "FP Tree Objects" => "fptree.md"
+        "Concepts" => Any[
+            "Association Rule Mining" => "concepts/association_rules.md",
+            "Frequent Itemset Mining" => "concepts/frequent_itemsets.md",
+            "Closed Itemset Mining" => "concepts/closed_itemsets.md",
+            "Maximal Itemset Mining" => "concepts/maximal_itemsets.md",
+        ],
+        "API Reference" => "api_reference.md",
+        #"FP Tree Objects" => "fptree.md"
     ],
     warnonly = [:missing_docs, :cross_references],
 )

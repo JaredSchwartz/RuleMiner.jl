@@ -1,16 +1,37 @@
-# RuleMiner.jl
+```@raw html
+---
+# https://vitepress.dev/reference/default-theme-home-page
+layout: home
 
-## Introduction
-RuleMiner.jl is a Julia package for association rule and frequent itemset mining inspired by the [arules](https://github.com/mhahsler/arules) R package and [SPMF](https://www.philippe-fournier-viger.com/spmf/) Java library.
+hero:
+  name: RuleMiner.jl
+  text: Fast Data Mining in Julia
+  tagline: RuleMiner is a package for association rule and frequent itemset mining inspired by the <u><a class="VPLink link vp-external-link-icon" href= https://github.com/mhahsler/arules>arules</a></u> R package and <u><a class="VPLink link vp-external-link-icon" href= https://www.philippe-fournier-viger.com/spmf/>SPMF</a></u> Java library.
+  actions:
+    - theme: brand
+      text: Get Started
+      link: /tutorials/getting_started
+    - theme: alt
+      text: API Reference
+      link: /api_reference
+    - theme: alt
+      text: View on GitHub
+      link: https://github.com/JaredSchwartz/RuleMiner.jl
+  image:
+    src: /assets/logo.svg
+    alt: RuleMiner.jl logo
 
-Key features of RuleMiner.jl include:
+features:
+  - icon: 🚀
+    title: Fast & Multithreaded
+    details: Supports Julia's native multithreading capabilities for improved performance
 
-- Support for Julia's native multithreading capabilities for improved performance
-- Direct interfaces with DataFrames.jl for loading transactional data and exporting results
-- Flexible handling of either relative (percentage) support or absolute (count) support in minimum support thresholds
+  - icon: 🤝
+    title: Friendly input and output formats
+    details: Directly integrates with Dataframes.jl for input and output
 
-## Contents
-```@contents
-Pages = ["association_rules.md", "frequent_itemsets.md", "closed_itemsets.md","maximal_itemsets.md","transactions.md"]
-Depth = 2
+  - icon: ↔️
+    title: Flexible API
+    details: Designed for multiple use cases, including both relative and absolute support calculation.
+---
 ```
