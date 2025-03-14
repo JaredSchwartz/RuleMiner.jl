@@ -252,6 +252,8 @@ function Base.getindex(txns::Txns, i::Integer)
     return txns.colkeys[items]
 end
 
+Base.show(io::IO, txns::Txns) = show(io, MIME("text/plain"), txns)
+
 function Base.show(io::IO, ::MIME"text/plain", txns::Txns)
     n_transactions, n_items = size(txns.matrix)
     n_nonzero = nnz(txns.matrix)

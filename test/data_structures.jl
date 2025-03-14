@@ -2,7 +2,7 @@
 function trunc_tester(object, nlines::Int, ncols::Int)
     buf = IOBuffer()
     io = IOContext(buf, :limit=>true, :displaysize=>(nlines, ncols))
-    show(io, MIME"text/plain"(), object)
+    show(io, object)
     result = String(take!(buf))
     return(result)
 end

@@ -163,6 +163,8 @@ mutable struct FPTree
     end
 end
 
+Base.show(io::IO, tree::FPTree) = show(io, MIME("text/plain"), tree)
+
 function Base.show(io::IO, ::MIME"text/plain", tree::FPTree)
     num_items = length(tree.header_table)
     num_nodes = sum([length(i) for i in values(tree.header_table)])
