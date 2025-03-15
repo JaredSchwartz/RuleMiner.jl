@@ -27,5 +27,5 @@
   <text x="400" y="30" font-family="Arial, sans-serif" font-weight="bold" font-size="24" text-anchor="middle">Itemset Types</text>
   
   <!-- Simplified explanatory text below the diagram -->
-  <text x="400" y="500" font-family="Arial, sans-serif" font-weight="bold" font-size="18" text-anchor="middle" fill="#000">Maximal ⊂ Closed ⊂ Frequent</text>
+  <text x="400" y="490" font-family="Arial, sans-serif" font-weight="bold" font-size="18" text-anchor="middle" fill="#000">Maximal ⊂ Closed ⊂ Frequent</text>
 </svg>
