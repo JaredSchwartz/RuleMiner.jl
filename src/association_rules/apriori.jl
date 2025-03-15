@@ -53,20 +53,17 @@ function create_level_one_rules(items, basenum, n_transactions, min_confidence)
 end
 
 # helper function to generate all candidates at a given k value
-function generate_candidates(current_level::Set{Vector{Int}}, k::Int, thread_buffers, candidate_chunks)
+function generate_candidates(current_level::Set{Vector{Int}}, k::Int, buffer_channel::Channel{ThreadBuffers}, candidate_channel::Channel{Set{Vector{Int}}}, num_buffers::Int)
     level_arr = collect(current_level)
     
     isempty(level_arr) && return Set{Vector{Int}}()
     
-    # Clear previous candidate chunks
-    foreach(empty!, candidate_chunks)
-    
     @sync begin
         for i in 1:length(level_arr)
-            @spawn begin
-                tid = threadid()
-                local_candidates = candidate_chunks[tid]
-                buffer = thread_buffers[tid].lineage
+            Threads.@spawn begin
+                # Take resources from channels
+                buf = take!(buffer_channel)
+                local_candidates = take!(candidate_channel)
                 
                 for j in (i+1):length(level_arr)
                     # Early skip for non-matching prefixes
@@ -74,21 +71,30 @@ function generate_candidates(current_level::Set{Vector{Int}}, k::Int, thread_buf
                         continue
                     end
                     
-                    empty!(buffer)
-                    append!(buffer, level_arr[i])
-                    append!(buffer, level_arr[j])
-                    unique!(sort!(buffer))
+                    empty!(buf.lineage)
+                    append!(buf.lineage, level_arr[i])
+                    append!(buf.lineage, level_arr[j])
+                    unique!(sort!(buf.lineage))
                     
-                    length(buffer) == k && push!(local_candidates, copy(buffer))
+                    length(buf.lineage) == k && push!(local_candidates, copy(buf.lineage))
                 end
+                
+                # Return resources to channels
+                put!(candidate_channel, local_candidates)
+                put!(buffer_channel, buf)
             end
         end
     end
     
     # Combine all candidates
     candidates = Set{Vector{Int}}()
-    for chunk in candidate_chunks
-        union!(candidates, chunk)
+    
+    # Collect all candidate sets and refill with empty sets
+    for _ in 1:num_buffers
+        local_candidates = take!(candidate_channel)
+        union!(candidates, local_candidates)
+        empty!(local_candidates)                   # Empty in place to avoid allocation
+        put!(candidate_channel, local_candidates)  # Put the same (now empty) set back
     end
     
     return candidates
@@ -96,6 +102,9 @@ end
 
 # helper function to generate arules based on candidates at k
 function process_candidate(lineage, subtxns, min_support, min_confidence, buf)
+    # Clear previous results
+    empty!(buf.rules)
+    
     # Check support
     fill!(buf.mask, true)
     for item in lineage
@@ -195,9 +204,20 @@ function apriori(txns::Transactions, min_support::Union{Int,Float64}, min_confid
     subtxns, items = RuleMiner.prune_matrix(txns.matrix, min_support)
     n_rows = size(subtxns, 1)
     
-    # Initialize thread resources
-    thread_buffers = [ThreadBuffers(n_rows) for _ in 1:nthreads()]
-    candidate_chunks = [Set{Vector{Int}}() for _ in 1:nthreads()]
+    # Number of buffers - typically using nthreads() is efficient
+    num_buffers = Threads.nthreads()
+    
+    # Create channel of thread buffers
+    buffer_channel = Channel{ThreadBuffers}(num_buffers)
+    for _ in 1:num_buffers
+        put!(buffer_channel, ThreadBuffers(n_rows))
+    end
+    
+    # Create channel for candidate chunks
+    candidate_channel = Channel{Set{Vector{Int}}}(num_buffers)
+    for _ in 1:num_buffers
+        put!(candidate_channel, Set{Vector{Int}}())
+    end
     
     # Process level one
     level_rules, current_level = create_level_one_rules(items, basenum, n_transactions, min_confidence)
@@ -206,25 +226,35 @@ function apriori(txns::Transactions, min_support::Union{Int,Float64}, min_confid
     # Main loop for level-wise processing
     k = 2
     while !isempty(current_level) && (max_length == 0 || k <= max_length)
-        candidates = generate_candidates(current_level, k, thread_buffers, candidate_chunks)
+        candidates = generate_candidates(current_level, k, buffer_channel, candidate_channel, num_buffers)
         isempty(candidates) && break
         
-        # Clear thread-local rule storage
-        foreach(buf -> empty!(buf.rules), thread_buffers)
+        # Channel for collecting rules from parallel tasks
+        rules_channel = Channel{Vector{Arule}}(Inf)
         
         @sync begin
             for lineage in candidates
-                @spawn begin
-                    tid = threadid()
-                    process_candidate(lineage, subtxns, min_support, min_confidence, thread_buffers[tid])
+                Threads.@spawn begin
+                    # Take a buffer from the channel
+                    buf = take!(buffer_channel)
+                    process_candidate(lineage, subtxns, min_support, min_confidence, buf)
+
+                    # Send collected rules to the rules channel
+                    if !isempty(buf.rules)
+                        put!(rules_channel, copy(buf.rules))
+                        empty!(buf.rules) # Clear for reuse
+                    end
+                    
+                    put!(buffer_channel, buf)
                 end
             end
         end
         
-        # Combine thread-local rules
+        # Collect all rules from the channel
+        close(rules_channel)
         level_rules = Vector{Arule}()
-        for buf in thread_buffers
-            append!(level_rules, buf.rules)
+        for rules_batch in rules_channel
+            append!(level_rules, rules_batch)
         end
         append!(rules, level_rules)
         
@@ -233,6 +263,7 @@ function apriori(txns::Transactions, min_support::Union{Int,Float64}, min_confid
         k += 1
     end
     
+    # Create the output DataFrame 
     df = DataFrame(
         LHS = [RuleMiner.getnames([items[i] for i in rule.lhs], txns) for rule in rules],
         RHS = [txns.colkeys[items[rule.rhs]] for rule in rules],

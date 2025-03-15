@@ -9,6 +9,7 @@ module RuleMiner
 using DataFrames
 using Combinatorics
 using PrettyTables
+using OhMyThreads
 
 # Base and Standard Library Dependencies
 using Mmap

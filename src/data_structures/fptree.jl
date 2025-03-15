@@ -111,19 +111,28 @@ mutable struct FPTree
         max_chunks = min(nthreads() * 4, cld(n_transactions, min_chunk_size))
         chunk_size = max(min_chunk_size, cld(n_transactions, max_chunks))
         n_chunks = min(max_chunks, cld(n_transactions, chunk_size))
-
-        # Pre-allocate fixed-size buffers for each thread
+        
+        # Create a channel of buffers
         buffer_size = length(sorted_cols)
-        thread_buffers = [Vector{Int}(undef, buffer_size) for _ in 1:nthreads()]
+        buffer_channel = Channel{Vector{Int}}(nthreads())
+        for _ in 1:nthreads()
+            put!(buffer_channel, Vector{Int}(undef, buffer_size))
+        end
 
+        # Create a channel for local trees
+        tree_channel = Channel{FPNode}(n_chunks)
+        
         # Process transactions in parallel
-        local_trees = Vector{FPNode}(undef, n_chunks)
         @sync begin
             for (chunk_id, chunk_start) in enumerate(1:chunk_size:n_transactions)
                 Threads.@spawn begin
+                    # Take a buffer from the channel
+                    buffer = take!(buffer_channel)
+                    
+                    # Create a local tree for this chunk
+                    local_tree = FPNode(-1)
+                    
                     chunk_end = min(chunk_start + chunk_size - 1, n_transactions)
-                    local_tree = FPNode(-1)  # Local tree for this chunk
-                    buffer = thread_buffers[Threads.threadid()]
                     
                     # Process each transaction in the chunk
                     for row in chunk_start:chunk_end
@@ -148,14 +157,19 @@ mutable struct FPTree
                             node = child
                         end
                     end
-
-                    local_trees[chunk_id] = local_tree
+                    
+                    # Put the local tree in the tree channel
+                    put!(tree_channel, local_tree)
+                    
+                    # Return buffer to the channel
+                    put!(buffer_channel, buffer)
                 end
             end
         end
 
         # Merge local trees into the main tree
-        for local_tree in local_trees
+        close(tree_channel)
+        for local_tree in tree_channel
             merge_tree!(tree.root, local_tree, tree.header_table)
         end
 

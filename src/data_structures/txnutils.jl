@@ -344,38 +344,54 @@ function fast_convert(S::SubArray{Bool, 2, <:SparseMatrixCSC{Bool}})::BitMatrix
     chunks = unsafe_wrap(Array{UInt64}, pointer(B.chunks), length(B.chunks))
     total_chunks = length(chunks)
     
-    # Calculate chunks per thread, ensuring even distribution
+    # Determine appropriate chunking for work with balanced size and count
     num_threads = nthreads()
-    chunks_per_thread = cld(total_chunks, num_threads)
+    min_items_per_chunk = 100               # Minimum items per chunk to avoid excessive overhead
+    target_chunk_count = num_threads * 4    # Target 4 chunks per thread for better balancing
     
-    @threads for thread_id in 1:num_threads
-        # Calculate chunk range for this thread
-        chunk_start = (thread_id - 1) * chunks_per_thread + 1
-        chunk_end = min(thread_id * chunks_per_thread, total_chunks)
-        
-        # Calculate bit range this thread is responsible for
-        bit_start = (chunk_start - 1) << 6
-        bit_end = (chunk_end << 6) - 1
-        
-        # Calculate which columns intersect with this bit range
-        col_start = bit_start ÷ m + 1
-        col_end = min(bit_end ÷ m + 1, n)
-        
-        # Process each column that intersects with this thread's chunks
-        @inbounds for (j, parent_col) in enumerate(col_range[col_start:col_end])
-            col_offset = (col_start + j - 2) * m
-            
-            # Process each nonzero in the column
-            for k in parent_mat.colptr[parent_col]:(parent_mat.colptr[parent_col+1]-1)
-                row = parent_mat.rowval[k]
-                abs_pos = col_offset + (row - 1)
-                
-                # Only process if this bit belongs to one of this thread's chunks
-                abs_pos < bit_start >= bit_end && continue
+    # Calculate chunk size that meets both our minimum size and desired count
+    ideal_chunk_size = max(min_items_per_chunk, cld(total_chunks, target_chunk_count))
+    
+    # Create a channel of work chunks
+    work_channel = Channel{Tuple{Int,Int}}(target_chunk_count) do ch
+        for chunk_start in 1:ideal_chunk_size:total_chunks
+            chunk_end = min(chunk_start + ideal_chunk_size - 1, total_chunks)
+            put!(ch, (chunk_start, chunk_end))
+        end
+    end
+    
+    # Process chunks in parallel
+    @sync begin
+        for _ in 1:num_threads
+            @spawn begin
+                for (chunk_start, chunk_end) in work_channel
+                    # Calculate bit range this thread is responsible for
+                    bit_start = (chunk_start - 1) << 6
+                    bit_end = (chunk_end << 6) - 1
+                    
+                    # Calculate which columns intersect with this bit range
+                    col_start = bit_start ÷ m + 1
+                    col_end = min(bit_end ÷ m + 1, n)
+                    
+                    # Process each column that intersects with this thread's chunks
+                    @inbounds for j in col_start:col_end
+                        parent_col = col_range[j]
+                        col_offset = (j - 1) * m
+                        
+                        # Process each nonzero in the column
+                        for k in parent_mat.colptr[parent_col]:(parent_mat.colptr[parent_col+1]-1)
+                            row = parent_mat.rowval[k]
+                            abs_pos = col_offset + (row - 1)
+                            
+                            # Only process if this bit belongs to one of this thread's chunks
+                            (abs_pos < bit_start || abs_pos > bit_end) && continue
 
-                chunk_idx = abs_pos >> 6
-                bit_pos = abs_pos & 63
-                chunks[chunk_idx + 1] |= UInt64(1) << bit_pos
+                            chunk_idx = abs_pos >> 6
+                            bit_pos = abs_pos & 63
+                            chunks[chunk_idx + 1] |= UInt64(1) << bit_pos
+                        end
+                    end
+                end
             end
         end
     end
