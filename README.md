@@ -22,7 +22,9 @@ RuleMiner.jl is a Julia package for data mining inspired by the [arules](https:/
 - Frequent itemset recovery
 
 ## Documentation
-Documentation, including a getting-started guide and full API reference, can be found here: [jaredschwartz.github.io/RuleMiner.jl](https://jaredschwartz.github.io/RuleMiner.jl/stable/)
+To get started with RuleMiner, check out the [quick start guide](https://jaredschwartz.github.io/RuleMiner.jl/tutorials/getting_started)
+
+The full API reference guides and tutorials can be found at the documentation site: [jaredschwartz.github.io/RuleMiner.jl](https://jaredschwartz.github.io/RuleMiner.jl/stable/)
 
 ## License
 RuleMiner.jl is licensed under the MIT license
