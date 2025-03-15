@@ -53,7 +53,7 @@ function create_level_one_rules(items, basenum, n_transactions, min_confidence)
 end
 
 # helper function to generate all candidates at a given k value
-function generate_candidates(current_level::Set{Vector{Int}}, k::Int, buffer_channel::Channel{ThreadBuffers}, candidate_channel::Channel{Set{Vector{Int}}})
+function generate_candidates(current_level::Set{Vector{Int}}, k::Int, buffer_channel::Channel{ThreadBuffers}, candidate_channel::Channel{Set{Vector{Int}}}, num_buffers::Int)
     level_arr = collect(current_level)
     
     isempty(level_arr) && return Set{Vector{Int}}()
@@ -89,13 +89,12 @@ function generate_candidates(current_level::Set{Vector{Int}}, k::Int, buffer_cha
     # Combine all candidates
     candidates = Set{Vector{Int}}()
     
-    # We don't want to close the channel as it will be reused
-    # Instead, collect its current contents
-    for _ in 1:nthreads()
+    # Collect all candidate sets and refill with empty sets
+    for _ in 1:num_buffers
         local_candidates = take!(candidate_channel)
         union!(candidates, local_candidates)
-        # Return the empty set back to the channel for reuse
-        put!(candidate_channel, Set{Vector{Int}}())
+        empty!(local_candidates)                   # Empty in place to avoid allocation
+        put!(candidate_channel, local_candidates)  # Put the same (now empty) set back
     end
     
     return candidates
@@ -204,6 +203,8 @@ function apriori(txns::Transactions, min_support::Union{Int,Float64}, min_confid
     
     subtxns, items = RuleMiner.prune_matrix(txns.matrix, min_support)
     n_rows = size(subtxns, 1)
+    
+    # Number of buffers - typically using nthreads() is efficient
     num_buffers = Threads.nthreads()
     
     # Create channel of thread buffers
@@ -225,7 +226,7 @@ function apriori(txns::Transactions, min_support::Union{Int,Float64}, min_confid
     # Main loop for level-wise processing
     k = 2
     while !isempty(current_level) && (max_length == 0 || k <= max_length)
-        candidates = generate_candidates(current_level, k, buffer_channel, candidate_channel)
+        candidates = generate_candidates(current_level, k, buffer_channel, candidate_channel, num_buffers)
         isempty(candidates) && break
         
         # Channel for collecting rules from parallel tasks
