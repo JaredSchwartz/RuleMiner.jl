@@ -14,7 +14,7 @@ SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 [compat]
 Combinatorics = "1.0.2"
 DataFrames = "1"
-OhMyThreads = "0.7.0"
+OhMyThreads = "0.7.0, 0.8"
 PrettyTables = "2.3 - 2.4"
 julia = "1.10"
 
