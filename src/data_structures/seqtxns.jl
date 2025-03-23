@@ -90,6 +90,7 @@ struct SeqTxns <: Transactions
     linekeys::Vector{String}
     index::Vector{UInt32}
     n_transactions::Int
+    n_sequences::Int
 
     # Constructor
     function SeqTxns(matrix::SparseMatrixCSC{Bool,UInt32}, colkeys::Vector{String}, linekeys::Vector{String}, index::Vector{UInt32})
@@ -103,7 +104,7 @@ struct SeqTxns <: Transactions
         
         last(index) <= size(matrix,1) || throw(DomainError(last(index), "Last series start must not exceed number of rows ($(size(matrix,1)))"))
         
-        return new(matrix, colkeys, linekeys, index, size(matrix,1))
+        return new(matrix, colkeys, linekeys, index, size(matrix,1), length(index))
     end
 
     # Constructor from DataFrame
@@ -134,7 +135,7 @@ struct SeqTxns <: Transactions
         colkeys = string.(names(df))
         matrix = SparseMatrixCSC((Matrix(df)))
 
-        return new(matrix, colkeys, linekeys, index, size(matrix,1))
+        return new(matrix, colkeys, linekeys, index, size(matrix,1), length(index))
     end
 
     # Constructor from file
@@ -148,69 +149,302 @@ struct SeqTxns <: Transactions
     )
         skiplines >= 0 || throw(DomainError(skiplines, "skiplines must be a non-negative integer"))
         nlines >= 0 || throw(DomainError(nlines, "nlines must be a non-negative integer"))
-    
+
         io = Mmap.mmap(file)
+        whitespace_bytes = UInt8.([' ', '\t', '\n', '\v', '\f', '\r'])
+        item_delim_bytes = Vector{UInt8}(string(item_delimiter))
+        set_delim_bytes = Vector{UInt8}(string(set_delimiter))
         
-        est_lines, est_sets, est_items = RuleMiner.delimcounter(io, UInt8[set_delimiter], UInt8[item_delimiter])
+        # Estimate lines, sets, and items from delimiter counts - preallocate arrays properly
+        est_lines, est_sets, est_items = delimcounter(io, set_delim_bytes, item_delim_bytes)
         est_lines = est_lines + 1 - skiplines   # Est. lines is one more than num of line delims minus any skipped
         est_sets = est_sets + est_lines         # Line delims also act as set delims
         est_items = est_items + est_sets        # Set delims also act as item delims
-    
-        item_map = Dict{String, UInt32}()
-        rowkeys = id_col ? Vector{String}(undef, est_sets) : String[]
+        
+        # Pre-allocate storage structures
+        KeyView = SubArray{UInt8,1,Vector{UInt8},Tuple{UnitRange{Int64}},true}
+        item_map = Dict{KeyView, UInt32}()
+        rowkey_views = id_col ? Vector{KeyView}(undef, est_sets) : Vector{KeyView}()
+        colkey_views = Vector{KeyView}()
         colvals = Vector{UInt32}(undef, est_items)
         rowvals = Vector{UInt32}(undef, est_items)
-        index = Vector{UInt32}(undef, est_sets)
-        index[1] = 1
-    
-        line_counter = 0
+        index = Vector{UInt32}(undef, est_lines)  # Sequence start indices
+        
+        len = length(io)
+        word_start = 1
+        line_counter = 1
         set_counter = 0
         item_counter = 0
+        items_in_row = 0
         item_id = 0
-    
-        for line in eachline(IOBuffer(io))
-            skiplines > 0 && (skiplines -= 1; continue)     # Skip supplied number of lines at beginning
-            nlines != 0 && line_counter >= nlines && break  # Break if we've reached the specified number of lines
-            isempty(strip(line)) && continue                # Skip empty lines
-            
-            line_counter += 1
-            for set in eachsplit(line, set_delimiter; keepempty=false)
-                set_counter += 1
-                for (index, item) in enumerate(eachsplit(set, item_delimiter; keepempty=false))
-                    if id_col && index == 1
-                        @inbounds rowkeys[set_counter] = item
-                        continue
-                    end
-                    item_counter += 1
-
-                    # avoided get!()do...end block because the closure causes serious performance issues
-                    key = get(item_map, item, nothing)
-                    if isnothing(key)
-                        item_id += 1
-                        key = item_id
-                        item_map[item] = key
-                    end
-                    
-                    @inbounds colvals[item_counter] = key
-                    @inbounds rowvals[item_counter] = set_counter
-                end
-            end
-            @inbounds index[line_counter + 1] = set_counter + 1
+        
+        # Skip header lines if requested
+        while skiplines > 0 && word_start <= len
+            newline_len = check_newline(io, word_start)
+            newline_len > 0 && (skiplines -= 1; word_start += newline_len; continue)
+            word_start += 1
         end
-    
+        
+        # First sequence always starts at position 1
+        index[1] = 1
+        
+        # Main parsing loop
+        while word_start <= len
+            nlines != 0 && line_counter > nlines && break
+            
+            # Handle newline (starts a new sequence)
+            newline_len = check_newline(io, word_start)
+            if newline_len > 0
+                if items_in_row > 0
+                    nlines != 0 && line_counter == nlines && break
+                    line_counter += 1
+                    if line_counter <= length(index)
+                        index[line_counter] = set_counter + 1
+                    end
+                end
+                items_in_row = 0
+                word_start += newline_len
+                continue
+            end
+            
+            # Check for set delimiter
+            if check_delim(io, word_start, set_delim_bytes)
+                # Move past the delimiter and continue
+                word_start += length(set_delim_bytes)
+                items_in_row = 0
+                continue
+            end
+            
+            # Find end of current field by scanning until delimiter/newline
+            word_end = word_start
+            has_content = false
+            while word_end <= len
+                if check_delim(io, word_end, item_delim_bytes) || 
+                check_delim(io, word_end, set_delim_bytes) ||
+                check_newline(io, word_end) > 0
+                    break
+                end
+                io[word_end] ∈ whitespace_bytes || (has_content = true)
+                word_end += 1
+            end
+            
+            # Skip empty/whitespace-only fields
+            if !has_content
+                word_start = word_end
+                if check_delim(io, word_end, item_delim_bytes)
+                    word_start += length(item_delim_bytes)
+                elseif check_delim(io, word_end, set_delim_bytes)
+                    word_start += length(set_delim_bytes)
+                end
+                continue
+            end
+            
+            # Handle set boundary - increment set counter when starting a new set
+            if items_in_row == 0
+                set_counter += 1
+            end
+            word_view = @view io[word_start:word_end-1]
+            
+            # Special handling for ID column at start of set
+            if id_col && items_in_row == 0
+                @inbounds rowkey_views[set_counter] = word_view
+                items_in_row = 1
+                word_start = word_end
+                if check_delim(io, word_end, item_delim_bytes)
+                    word_start += length(item_delim_bytes)
+                end
+                continue
+            end
+            
+            # Process regular field - dedup and store
+            items_in_row += 1
+            item_counter += 1
+            
+            # avoided get!()do...end block because the closure causes serious performance issues
+            key = get(item_map, word_view, nothing)
+            if isnothing(key)
+                item_id += 1
+                key = item_id
+                item_map[word_view] = key
+                push!(colkey_views, word_view)
+            end
+            
+            @inbounds colvals[item_counter] = key
+            @inbounds rowvals[item_counter] = set_counter
+            
+            word_start = word_end
+            if check_delim(io, word_end, item_delim_bytes)
+                word_start += length(item_delim_bytes)
+            elseif check_delim(io, word_end, set_delim_bytes)
+                word_start += length(set_delim_bytes)
+                items_in_row = 0
+            end
+        end
+
+        # Resize arrays to actual data size
         resize!(colvals, item_counter)
         resize!(rowvals, item_counter)
         resize!(index, line_counter)
-        id_col && resize!(rowkeys, set_counter)
-
-        n = item_id 
+        id_col && resize!(rowkey_views, set_counter)
+        
+        # Generate sparse matrix
+        n = item_id
         m = set_counter
         colptr, rowval = RuleMiner.convert_csc!(colvals, rowvals, n)
         nzval = fill(true, item_counter)
-        
         matrix = SparseMatrixCSC(m, n, colptr, rowval, nzval)
-        colkeys = sort!(collect(keys(item_map)), by=k->item_map[k])
         
-        return new(matrix, colkeys, rowkeys, index, m)
+        # Convert views to strings
+        colkeys = sort!(collect(keys(item_map)), by=k->item_map[k])
+        colkeys = unsafe_string.(pointer.(colkeys), length.(colkeys))
+        linekeys = id_col ? unsafe_string.(pointer.(rowkey_views), length.(rowkey_views)) : String[]
+        
+        return new(matrix, colkeys, linekeys, index, m, line_counter)
     end
+end
+
+#=== Indexing Functions ===#
+Base.length(seqtxns::SeqTxns) = seqtxns.n_sequences
+Base.lastindex(seqtxns::SeqTxns) = seqtxns.n_sequences
+Base.first(seqtxns::SeqTxns) = seqtxns[1]
+Base.first(seqtxns::SeqTxns, n::Integer) = [seqtxns[i] for i in 1:min(n, seqtxns.n_sequences)]
+Base.last(seqtxns::SeqTxns) = seqtxns[end]
+Base.last(seqtxns::SeqTxns, n::Integer) = [seqtxns[i] for i in max(1, seqtxns.n_sequences-n+1):seqtxns.n_sequences]
+
+function Base.getindex(seqtxns::SeqTxns, i::Integer)
+    1 <= i <= seqtxns.n_sequences || throw(BoundsError(seqtxns, i))
+    
+    # Get the start and end indices for the sequence
+    start_idx = seqtxns.index[i]
+    end_idx = i < seqtxns.n_sequences ? seqtxns.index[i+1] - 1 : seqtxns.n_transactions
+    
+    # Use a comprehension to create the sequence
+    if isempty(seqtxns.linekeys)
+        return [seqtxns.colkeys[findall(@view seqtxns.matrix[row_idx, :])] for row_idx in start_idx:end_idx]
+    else
+        return [(id = seqtxns.linekeys[row_idx], 
+                 items = seqtxns.colkeys[findall(@view seqtxns.matrix[row_idx, :])]) 
+                for row_idx in start_idx:end_idx]
+    end
+end
+
+function Base.getindex(seqtxns::SeqTxns, r::AbstractUnitRange{<:Integer})
+    isempty(r) && return []
+    1 <= first(r) && last(r) <= seqtxns.n_sequences || throw(BoundsError(seqtxns, r))
+    return [seqtxns[i] for i in r]
+end
+
+#=== Printing Functions ===#
+Base.show(io::IO, seqtxns::SeqTxns) = show(io, MIME("text/plain"), seqtxns)
+
+function Base.show(io::IO, ::MIME"text/plain", seqtxns::SeqTxns)
+    n_sequences = seqtxns.n_sequences
+    n_transactions = seqtxns.n_transactions
+    n_items = size(seqtxns.matrix, 2)
+    n_nonzero = nnz(seqtxns.matrix)
+    
+    println(io, "SeqTxns with $n_sequences sequences, $n_transactions transactions, $n_items items, and $n_nonzero non-zero elements")
+
+    # Terminal dimensions and display limits
+    term_height, term_width = displaysize(io)
+    max_rows = min(term_height - 6, n_transactions, 40)
+    max_rows < 1 && return
+
+    # Select transactions to display
+    if n_transactions <= max_rows
+        row_indices = 1:n_transactions
+    else
+        half_rows = div(max_rows - 1, 2)
+        row_indices = [1:half_rows; (n_transactions - half_rows + 1):n_transactions]
+    end
+
+    # Find sequence and relative index for each displayed transaction
+    seq_for_display = zeros(Int, length(row_indices))
+    idx_in_seq = zeros(Int, length(row_indices))
+    
+    for (i, row) in enumerate(row_indices)
+        seq_idx = searchsortedlast(seqtxns.index, row)
+        seq_for_display[i] = seq_idx
+        idx_in_seq[i] = row - seqtxns.index[seq_idx] + 1
+    end
+
+    # Calculate column widths
+    seq_indices = seq_for_display
+    seq_names = isempty(seqtxns.linekeys) ? 
+                string.(seq_indices) : 
+                seqtxns.linekeys[seqtxns.index[seq_indices]]
+    
+    seq_width = max(8, length("Sequence"), maximum(length, seq_names))
+    idx_width = max(5, length("Transaction"))
+    available_width = max(20, term_width - seq_width - idx_width - 5)
+
+    # Build item strings
+    item_strings = Vector{String}(undef, length(row_indices))
+    max_item_length = 0
+    for (i, row) in enumerate(row_indices)
+        items = seqtxns.colkeys[findall(seqtxns.matrix[row, :])]
+        isempty(items) && (item_strings[i] = ""; continue)
+        
+        str = join(items, ", ")
+        if length(str) ≤ available_width - 1
+            item_strings[i] = str
+            max_item_length = max(max_item_length, length(str))
+        else
+            pos = findprev(',', str, available_width - 1)
+            item_strings[i] = isnothing(pos) ? "…" : str[1:pos] * "…"
+            max_item_length = max(max_item_length, length(item_strings[i]))
+        end
+    end
+    
+    # Adjust width based on content
+    items_width = min(available_width, max(20, max_item_length))
+
+    # Create display matrix
+    display_data = Matrix{String}(undef, length(row_indices), 3)
+    
+    last_seq = 0
+    for i in eachindex(row_indices)
+        seq_idx = seq_for_display[i]
+        tx_idx = idx_in_seq[i]
+        
+        # Only show sequence number on first transaction of a sequence
+        if seq_idx != last_seq
+            display_data[i, 1] = seq_names[i]
+        else
+            display_data[i, 1] = ""
+        end
+        
+        display_data[i, 2] = string(tx_idx)
+        display_data[i, 3] = item_strings[i]
+        
+        last_seq = seq_idx
+    end
+    
+    # Add ellipsis row if needed
+    if n_transactions > max_rows
+        display_data = vcat(
+            display_data[1:half_rows, :],
+            reshape(["⋮", "⋮", "⋮"], 1, 3),
+            display_data[(half_rows+1):end, :]
+        )
+    end
+
+    # Display table
+    tf = TextFormat(
+        up_intersection='─',
+        bottom_intersection='─',
+        column='│',
+        row='─',
+        hlines=[:header]
+    )
+
+    pretty_table(io, display_data;
+        header=["Sequence", "Transaction", "Items"],
+        tf=tf,
+        crop=:none,
+        show_row_number=false,
+        columns_width=[seq_width, idx_width, items_width],
+        alignment=[:r, :l, :l],
+        vlines=[1, 2]
+    )
 end

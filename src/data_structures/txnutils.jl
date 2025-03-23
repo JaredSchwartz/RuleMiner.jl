@@ -100,12 +100,14 @@ function delimcounter(io::Vector{UInt8}, byte_patterns::Vector{UInt8}...)::Vecto
         
         # Check each delimiter
         advanced = false
-        for (idx, pattern) in enumerate(byte_patterns)
+        idx = 1
+        for pattern in byte_patterns
             if check_delim(io, i, pattern)
                 result[idx + 1] += 1
                 i += pattern_lengths[idx]
                 advanced = true
                 break
+                idx += 1
             end
         end
         
