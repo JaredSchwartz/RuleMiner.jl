@@ -207,16 +207,6 @@ end
             @test size(data.matrix) == (12,16)
             @test sum(data.matrix) == 46
             @test sort(data.colkeys) == item_vals
-            @test isempty(data.linekeys)
-            @test data.index == seq_index
-        end
-
-        @testset "line indexes" begin
-            data = SeqTxns(joinpath(@__DIR__,"files/sequential/data_indexed.txt"),',',';';id_col = true)
-            @test size(data.matrix) == (12,16)
-            @test sum(data.matrix) == 46
-            @test sort(data.colkeys) == item_vals
-            @test sort(data.linekeys) == index_vals
             @test data.index == seq_index
         end
 
@@ -225,7 +215,6 @@ end
             @test size(data.matrix) == (12,16)
             @test sum(data.matrix) == 46
             @test sort(data.colkeys) == item_vals
-            @test isempty(data.linekeys)
             @test data.index == seq_index
         end
 
@@ -234,7 +223,6 @@ end
             @test size(data.matrix) == (2,6)
             @test sum(data.matrix) == 7
             @test sort(data.colkeys) == ["bacon", "bread", "cheese", "eggs", "ham", "milk"]
-            @test isempty(data.linekeys)
             @test data.index == UInt32[1]
         end
     end
@@ -243,24 +231,12 @@ end
         dftest = txns_to_df(data,true)
         dftest_data = txns_to_df(data,false)
         dftest_invalid = insertcols(dftest, :x_column => fill('x', nrow(dftest)))
-        data = SeqTxns(joinpath(@__DIR__,"files/sequential/data_indexed.txt"),',',';';id_col = true)
-        dftest_index =  txns_to_df(data,true)
 
         @testset "without index" begin
             data = SeqTxns(dftest,:SequenceIndex)
             @test size(data.matrix) == (12,16)
             @test sum(data.matrix) == 46
             @test sort(data.colkeys) == item_vals
-            @test isempty(data.linekeys)
-            @test data.index == seq_index
-        end
-
-        @testset "with index" begin
-            data = SeqTxns(dftest_index,:SequenceIndex,:Index)
-            @test size(data.matrix) == (12,16)
-            @test sum(data.matrix) == 46
-            @test sort(data.colkeys) == item_vals
-            @test sort(data.linekeys) == index_vals
             @test data.index == seq_index
         end
         
@@ -269,7 +245,6 @@ end
             @test size(data.matrix) == (12,16)
             @test sum(data.matrix) == 46
             @test sort(data.colkeys) == item_vals
-            @test isempty(data.linekeys)
         end
 
         @testset "invalid" begin
@@ -279,15 +254,17 @@ end
     end
     @testset "Default Constructor" begin
         newstruct = SeqTxns(joinpath(@__DIR__,"files/sequential/data.txt"),',',';')
-        data = SeqTxns(newstruct.matrix, newstruct.colkeys, newstruct.linekeys, newstruct.index)
+        data = SeqTxns(newstruct.matrix, newstruct.colkeys, newstruct.index)
         @test size(data.matrix) == (12,16)
         @test sum(data.matrix) == 46
         @test sort(data.colkeys) == item_vals
-        @test isempty(data.linekeys)
         @test data.index == seq_index
     end
     @testset "Auxiliary Functions" begin
         data = SeqTxns(joinpath(@__DIR__,"files/sequential/data.txt"),',',';')
+        @testset "length" begin
+            @test length(data) == 9
+        end
         @testset "getbounds" begin
             bounds = UInt32[2, 3, 4, 5, 8, 9, 10, 11, 12]
             @test RuleMiner.getends(data) == bounds

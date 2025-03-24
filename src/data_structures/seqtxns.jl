@@ -9,14 +9,14 @@ Licensed under the MIT license. See https://github.com/JaredSchwartz/RuleMiner.j
 A struct representing a collection of transactions in a sparse matrix format, with support for sequence grouping.
 
 # Fields
-- `matrix::SparseMatrixCSC{Bool,Int64}`: A sparse boolean matrix representing the transactions.
+- `matrix::SparseMatrixCSC{Bool,UInt32}`: A sparse boolean matrix representing the transactions.
   Rows correspond to transactions, columns to items. A `true` value at position (i,j) 
   indicates that the item j is present in transaction i.
 - `colkeys::Vector{String}`: A vector of item names corresponding to matrix columns.
-- `linekeys::Vector{String}`: A vector of transaction identifiers corresponding to matrix rows.
 - `index::Vector{UInt32}`: A vector of indices indicating the start of each new sequence.
   The last sequence ends at the last row of the matrix.
 - `n_transactions::Int`: The total number of transactions in the dataset.
+- `n_sequences::Int`: The total number of sequences in the dataset.
 
 # Description
 The `SeqTxns` struct extends the concept of transaction data to include sequence information.
@@ -31,29 +31,26 @@ subset of all possible items.
 # Constructors
 ## Default Constructor
 ```julia
-SeqTxns(matrix::SparseMatrixCSC{Bool,Int64}, colkeys::Vector{String}, linekeys::Vector{String}, index::Vector{UInt32})
+SeqTxns(matrix::SparseMatrixCSC{Bool,UInt32}, colkeys::Vector{String}, index::Vector{UInt32})
 ```
 
 ## DataFrame Constructor
 ```julia
-SeqTxns(df::DataFrame, sequence_col::Symbol, index_col::Union{Symbol,Nothing}=nothing)
+SeqTxns(df::DataFrame, sequence_col::Symbol)
 ```
 The DataFrame constructor allows direct creation of a `SeqTxns` object from a DataFrame:
 - `df`: Input DataFrame where each row is a transaction and each column is an item.
 - `sequence_col`: Specifies the column used to determine sequence groupings.
-- `index_col`: Optional. Specifies a column to use as transaction identifiers. 
-   If not provided, row numbers are used as identifiers.
 
 ## File Constructor
 ```julia
-SeqTxns(file::String, item_delimiter::Union{Char,String}, set_delimiter::Union{Char,String}; id_col::Bool = false, skiplines::Int = 0, nlines::Int = 0)
+SeqTxns(file::String, item_delimiter::Union{Char,String}, set_delimiter::Union{Char,String}; skiplines::Int = 0, nlines::Int = 0)
 ```
 The file constructor allows creation of a `SeqTxns` object directly from a file:
 - `file`: Path to the input file containing transaction data.
 - `item_delimiter`: Character or string used to separate items within a transaction.
 - `set_delimiter`: Character or string used to separate transactions within a sequence.
 Keyword Arguments:
-- `id_col`: If true, treats the first item in each transaction as a transaction identifier.
 - `skiplines`: Number of lines to skip at the beginning of the file (e.g., for headers).
 - `nlines`: Maximum number of lines to read. If 0, reads the entire file.
 
@@ -61,42 +58,38 @@ Keyword Arguments:
 ```julia
 # Create from DataFrame
 df = DataFrame(
-    ID = ["T1", "T2", "T3", "T4", "T5", "T6"],
     Sequence = ["A", "A", "B", "B", "B", "C"],
     Apple = [1, 0, 1, 0, 1, 1],
     Banana = [1, 1, 0, 1, 0, 1],
     Orange = [0, 1, 1, 1, 0, 0]
 )
-txns_seq = SeqTxns(df, :Sequence, index_col=:ID)
+txns_seq = SeqTxns(df, :Sequence)
 
 # Create from file
-txns_seq_file = SeqTxns("transactions.txt", ',', ';', id_col=true, skiplines=1)
+txns_seq_file = SeqTxns("transactions.txt", ',', ';', skiplines=1)
 
 # Access data
 item_in_transaction = txns_seq.matrix[2, 1]  # Check if item 1 is in transaction 2
 item_name = txns_seq.colkeys[1]              # Get the name of item 1
-transaction_id = txns_seq.linekeys[2]        # Get the ID of transaction 2
 sequence_starts = txns_seq.index             # Get the starting indices of each sequence
-total_transactions = txns.n_transactions # Get the total number of transactions
+total_transactions = txns_seq.n_transactions # Get the total number of transactions
+total_sequences = txns_seq.n_sequences       # Get the total number of sequences
 
 # Get bounds of a specific sequence (e.g., second sequence)
 seq_start = txns_seq.index[2]
-seq_end = txns_seq.index[3] - 1  # Or length(txns_seq.linekeys) if it's the last sequence
+seq_end = seq_start < length(txns_seq.index) ? txns_seq.index[3] - 1 : txns_seq.n_transactions
 ```
 """
 struct SeqTxns <: Transactions
     matrix::SparseMatrixCSC{Bool,UInt32}
     colkeys::Vector{String}
-    linekeys::Vector{String}
     index::Vector{UInt32}
     n_transactions::Int
     n_sequences::Int
 
     # Constructor
-    function SeqTxns(matrix::SparseMatrixCSC{Bool,UInt32}, colkeys::Vector{String}, linekeys::Vector{String}, index::Vector{UInt32})
+    function SeqTxns(matrix::SparseMatrixCSC{Bool,UInt32}, colkeys::Vector{String}, index::Vector{UInt32})
         size(matrix, 2) == length(colkeys) || throw(ArgumentError("Number of columns in matrix ($(size(matrix, 2))) must match length of colkeys ($(length(colkeys)))"))
-        
-        (isempty(linekeys) || size(matrix, 1) == length(linekeys)) || throw(ArgumentError("Length of linekeys ($(length(linekeys))) must be 0 or match the number of rows in matrix ($(size(matrix, 1)))"))
         
         issorted(index) || throw(ArgumentError("index must be sorted"))
         
@@ -104,19 +97,12 @@ struct SeqTxns <: Transactions
         
         last(index) <= size(matrix,1) || throw(DomainError(last(index), "Last series start must not exceed number of rows ($(size(matrix,1)))"))
         
-        return new(matrix, colkeys, linekeys, index, size(matrix,1), length(index))
+        return new(matrix, colkeys, index, size(matrix,1), length(index))
     end
 
     # Constructor from DataFrame
-    function SeqTxns(df::DataFrame, sequence_col::Symbol, index_col::Union{Symbol,Nothing}=nothing)
+    function SeqTxns(df::DataFrame, sequence_col::Symbol)
         df = sort(df, sequence_col)
-        
-        # Handle Row Index column
-        linekeys = String[]
-        if !isnothing(index_col)
-            linekeys = string.(df[:, index_col])
-            select!(df, Not(index_col))  
-        end
 
         # Handle Sequence Index column
         amts = combine(groupby(df, sequence_col), nrow => :count)[!,:count]
@@ -135,7 +121,7 @@ struct SeqTxns <: Transactions
         colkeys = string.(names(df))
         matrix = SparseMatrixCSC((Matrix(df)))
 
-        return new(matrix, colkeys, linekeys, index, size(matrix,1), length(index))
+        return new(matrix, colkeys, index, size(matrix,1), length(index))
     end
 
     # Constructor from file
@@ -143,7 +129,6 @@ struct SeqTxns <: Transactions
         file::String, 
         item_delimiter::Union{Char,String}, 
         set_delimiter::Union{Char,String};
-        id_col::Bool = false, 
         skiplines::Int = 0, 
         nlines::Int = 0
     )
@@ -164,7 +149,6 @@ struct SeqTxns <: Transactions
         # Pre-allocate storage structures
         KeyView = SubArray{UInt8,1,Vector{UInt8},Tuple{UnitRange{Int64}},true}
         item_map = Dict{KeyView, UInt32}()
-        rowkey_views = id_col ? Vector{KeyView}(undef, est_sets) : Vector{KeyView}()
         colkey_views = Vector{KeyView}()
         colvals = Vector{UInt32}(undef, est_items)
         rowvals = Vector{UInt32}(undef, est_items)
@@ -245,17 +229,6 @@ struct SeqTxns <: Transactions
             end
             word_view = @view io[word_start:word_end-1]
             
-            # Special handling for ID column at start of set
-            if id_col && items_in_row == 0
-                @inbounds rowkey_views[set_counter] = word_view
-                items_in_row = 1
-                word_start = word_end
-                if check_delim(io, word_end, item_delim_bytes)
-                    word_start += length(item_delim_bytes)
-                end
-                continue
-            end
-            
             # Process regular field - dedup and store
             items_in_row += 1
             item_counter += 1
@@ -285,7 +258,6 @@ struct SeqTxns <: Transactions
         resize!(colvals, item_counter)
         resize!(rowvals, item_counter)
         resize!(index, line_counter)
-        id_col && resize!(rowkey_views, set_counter)
         
         # Generate sparse matrix
         n = item_id
@@ -297,9 +269,8 @@ struct SeqTxns <: Transactions
         # Convert views to strings
         colkeys = sort!(collect(keys(item_map)), by=k->item_map[k])
         colkeys = unsafe_string.(pointer.(colkeys), length.(colkeys))
-        linekeys = id_col ? unsafe_string.(pointer.(rowkey_views), length.(rowkey_views)) : String[]
         
-        return new(matrix, colkeys, linekeys, index, m, line_counter)
+        return new(matrix, colkeys, index, m, line_counter)
     end
 end
 
@@ -317,15 +288,8 @@ function Base.getindex(seqtxns::SeqTxns, i::Integer)
     # Get the start and end indices for the sequence
     start_idx = seqtxns.index[i]
     end_idx = i < seqtxns.n_sequences ? seqtxns.index[i+1] - 1 : seqtxns.n_transactions
-    
-    # Use a comprehension to create the sequence
-    if isempty(seqtxns.linekeys)
-        return [seqtxns.colkeys[findall(@view seqtxns.matrix[row_idx, :])] for row_idx in start_idx:end_idx]
-    else
-        return [(id = seqtxns.linekeys[row_idx], 
-                 items = seqtxns.colkeys[findall(@view seqtxns.matrix[row_idx, :])]) 
-                for row_idx in start_idx:end_idx]
-    end
+
+    return [seqtxns.colkeys[vec(@view seqtxns.matrix[row_idx, :])] for row_idx in start_idx:end_idx]
 end
 
 function Base.getindex(seqtxns::SeqTxns, r::AbstractUnitRange{<:Integer})
@@ -370,9 +334,7 @@ function Base.show(io::IO, ::MIME"text/plain", seqtxns::SeqTxns)
 
     # Calculate column widths
     seq_indices = seq_for_display
-    seq_names = isempty(seqtxns.linekeys) ? 
-                string.(seq_indices) : 
-                seqtxns.linekeys[seqtxns.index[seq_indices]]
+    seq_names = string.(seq_indices)
     
     seq_width = max(8, length("Sequence"), maximum(length, seq_names))
     idx_width = max(5, length("Transaction"))
