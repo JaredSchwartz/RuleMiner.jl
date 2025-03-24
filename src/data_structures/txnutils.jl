@@ -100,13 +100,15 @@ function delimcounter(io::Vector{UInt8}, byte_patterns::Vector{UInt8}...)::Vecto
         
         # Check each delimiter
         advanced = false
-        for (idx, pattern) in enumerate(byte_patterns)
+        idx = 1
+        for pattern in byte_patterns
             if check_delim(io, i, pattern)
                 result[idx + 1] += 1
                 i += pattern_lengths[idx]
                 advanced = true
                 break
             end
+            idx += 1
         end
         
         if !advanced
@@ -287,11 +289,6 @@ function txns_to_df(txns::SeqTxns, index::Bool = true)::DataFrame
             sequence_indices[start_idx:end_idx] .= seq_idx
         end
         insertcols!(df, 1, :SequenceIndex => sequence_indices)
-    end
-
-    # Add Index column if requested
-    if !isempty(txns.linekeys)
-        insertcols!(df, 1, :Index => txns.linekeys)
     end
     
     return df
