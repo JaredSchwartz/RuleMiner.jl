@@ -191,14 +191,6 @@ struct SeqTxns <: Transactions
                 continue
             end
             
-            # Check for set delimiter
-            if check_delim(io, word_start, set_delim_bytes)
-                # Move past the delimiter and continue
-                word_start += length(set_delim_bytes)
-                items_in_row = 0
-                continue
-            end
-            
             # Find end of current field by scanning until delimiter/newline
             word_end = word_start
             has_content = false
