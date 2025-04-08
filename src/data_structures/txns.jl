@@ -237,7 +237,7 @@ struct Txns <: Transactions
     end
 end
 
-# Utility Functions
+#=== Indexing Functions ===#
 Base.length(txns::Txns) =  txns.n_transactions
 Base.lastindex(txns::Txns) = txns.n_transactions
 Base.first(txns::Txns) = txns[1]
@@ -252,6 +252,13 @@ function Base.getindex(txns::Txns, i::Integer)
     return txns.colkeys[items]
 end
 
+function Base.getindex(txns::Txns, r::AbstractUnitRange{<:Integer})
+    isempty(r) && return []
+    1 <= first(r) && last(r) <= txns.n_transactions || throw(BoundsError(txns, r))
+    return [txns[i] for i in r]
+end
+
+#=== Printing Functions ===#
 Base.show(io::IO, txns::Txns) = show(io, MIME("text/plain"), txns)
 
 function Base.show(io::IO, ::MIME"text/plain", txns::Txns)
@@ -263,7 +270,7 @@ function Base.show(io::IO, ::MIME"text/plain", txns::Txns)
     # Terminal dimensions and display limits
     term_height, term_width = displaysize(io)
     max_rows = min(term_height - 6, n_transactions, 40)  # -6 for margins and headers
-    max_rows <= 3 && return
+    max_rows < 1 && return
 
     # Select rows to display
     if n_transactions <= max_rows
@@ -302,7 +309,7 @@ function Base.show(io::IO, ::MIME"text/plain", txns::Txns)
             ["⋮" "⋮"],
             display_data[half_rows+1:end, :]
         )
-    end
+    end 
 
     # Display table
     tf = TextFormat(

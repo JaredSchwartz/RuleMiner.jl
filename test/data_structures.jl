@@ -145,6 +145,7 @@ end
             first2 = [["milk", "eggs", "bread"], ["milk", "eggs", "butter", "sugar", "flour"]]
             @test first(data) == firstline
             @test first(data,2) == first2
+            @test data[1:2] == first2
         end
         @testset "last()" begin
             lastline = ["eggs", "bacon", "ham", "cheese"]
