@@ -4,143 +4,26 @@ Licensed under the MIT license. See https://github.com/JaredSchwartz/RuleMiner.j
 =#
 
 struct Arule
-    lhs::Vector{Int}    # Vector containing the integer indices of the left-hand side of the rule
-    rhs::Int            # Integer index of the right-hand side of the rule
-    n::Int              # Count (n) value
-    cov::Int            # Coverage (parent support) value
-    conf::Float64       # Confidence (n / cov)
-    lin::Vector{Int}    # Lineage of the rule (LHS union RHS)
+    lhs::Vector{Int}        # Vector containing the integer indices of the left-hand side of the rule
+    rhs::Int                # Integer index of the right-hand side of the rule
+    n::Int                  # Count (n) value
+    cov::Int                # Coverage (parent support) value
+    conf::Float64           # Confidence (n / cov)
+    lin::Vector{Int}        # Lineage of the rule (LHS union RHS)
 end
 
-struct ThreadBuffers
+struct ThreadBuffer
     mask::BitVector         # BitVector buffer for filtering rows 
     lhs::Vector{Int}        # LHS buffer
     lineage::Vector{Int}    # Lineage buffer
     rules::Vector{Arule}    # Thread-local output buffer
 
-    ThreadBuffers(n_rows::Int) = new(
+    ThreadBuffer(n_rows::Int) = new(
         falses(n_rows),
         Vector{Int}(),
         Vector{Int}(),
         Vector{Arule}()
     )
-end
-
-# helper function to create the level one rules (k=1)
-function create_level_one_rules(items, basenum, n_transactions, min_confidence)
-    level_one = Set([i] for i in 1:length(items))
-    level_rules = Vector{Arule}()
-    sizehint!(level_rules, length(level_one))
-    
-    for lin in level_one
-        index = first(lin)
-        confidence = basenum[items[index]] / n_transactions
-        
-        confidence < min_confidence && continue
-        
-        rule = Arule(
-            Int[],
-            index,
-            basenum[items[index]],
-            n_transactions,
-            confidence,
-            collect(lin)
-        )
-        push!(level_rules, rule)
-    end
-    
-    return level_rules, level_one
-end
-
-# helper function to generate all candidates at a given k value
-function generate_candidates(current_level::Set{Vector{Int}}, k::Int, buffer_channel::Channel{ThreadBuffers}, candidate_channel::Channel{Set{Vector{Int}}}, num_buffers::Int)
-    level_arr = collect(current_level)
-    
-    isempty(level_arr) && return Set{Vector{Int}}()
-    
-    @sync begin
-        for i in 1:length(level_arr)
-            Threads.@spawn begin
-                # Take resources from channels
-                buf = take!(buffer_channel)
-                local_candidates = take!(candidate_channel)
-                
-                for j in (i+1):length(level_arr)
-                    # Early skip for non-matching prefixes
-                    if k > 2 && level_arr[i][1:k-2] != level_arr[j][1:k-2]
-                        continue
-                    end
-                    
-                    empty!(buf.lineage)
-                    append!(buf.lineage, level_arr[i])
-                    append!(buf.lineage, level_arr[j])
-                    unique!(sort!(buf.lineage))
-                    
-                    length(buf.lineage) == k && push!(local_candidates, copy(buf.lineage))
-                end
-                
-                # Return resources to channels
-                put!(candidate_channel, local_candidates)
-                put!(buffer_channel, buf)
-            end
-        end
-    end
-    
-    # Combine all candidates
-    candidates = Set{Vector{Int}}()
-    
-    # Collect all candidate sets and refill with empty sets
-    for _ in 1:num_buffers
-        local_candidates = take!(candidate_channel)
-        union!(candidates, local_candidates)
-        empty!(local_candidates)                   # Empty in place to avoid allocation
-        put!(candidate_channel, local_candidates)  # Put the same (now empty) set back
-    end
-    
-    return candidates
-end
-
-# helper function to generate arules based on candidates at k
-function process_candidate(lineage, subtxns, min_support, min_confidence, buf)
-    # Clear previous results
-    empty!(buf.rules)
-    
-    # Check support
-    fill!(buf.mask, true)
-    for item in lineage
-        buf.mask .&= view(subtxns, :, item)
-    end
-    support = count(buf.mask)
-    
-    support < min_support && return
-    
-    # Process each item as RHS
-    for i in 1:length(lineage)
-        empty!(buf.lhs)
-        append!(buf.lhs, lineage)
-        deleteat!(buf.lhs, i)
-        rhs = lineage[i]
-        
-        # Calculate confidence
-        fill!(buf.mask, true)
-        for item in buf.lhs
-            buf.mask .&= view(subtxns, :, item)
-        end
-        coverage = count(buf.mask)
-        confidence = support / coverage
-        
-        confidence < min_confidence && continue
-        
-        rule = Arule(
-            copy(buf.lhs),
-            rhs,
-            support,
-            coverage,
-            confidence,
-            copy(lineage)
-        )
-        push!(buf.rules, rule)
-    end
 end
 
 """
@@ -204,45 +87,39 @@ function apriori(txns::Transactions, min_support::Union{Int,Float64}, min_confid
     subtxns, items = RuleMiner.prune_matrix(txns.matrix, min_support)
     n_rows = size(subtxns, 1)
     
-    # Number of buffers - typically using nthreads() is efficient
+    # Set up processing channels
     num_buffers = Threads.nthreads()
-    
-    # Create channel of thread buffers
-    buffer_channel = Channel{ThreadBuffers}(num_buffers)
+
+    buffer_channel = Channel{ThreadBuffer}(num_buffers)
     for _ in 1:num_buffers
-        put!(buffer_channel, ThreadBuffers(n_rows))
+        put!(buffer_channel, ThreadBuffer(n_rows))
     end
     
-    # Create channel for candidate chunks
     candidate_channel = Channel{Set{Vector{Int}}}(num_buffers)
     for _ in 1:num_buffers
         put!(candidate_channel, Set{Vector{Int}}())
     end
     
-    # Process level one
-    level_rules, current_level = create_level_one_rules(items, basenum, n_transactions, min_confidence)
+    # Process level one separately
+    level_rules, current_level = generate_L1_rules(items, basenum, n_transactions, min_confidence)
     rules = copy(level_rules)
     
-    # Main loop for level-wise processing
     k = 2
     while !isempty(current_level) && (max_length == 0 || k <= max_length)
         candidates = generate_candidates(current_level, k, buffer_channel, candidate_channel, num_buffers)
         isempty(candidates) && break
         
-        # Channel for collecting rules from parallel tasks
-        rules_channel = Channel{Vector{Arule}}(Inf)
+        rules_channel = Channel{Vector{Arule}}(Inf) # Results collection Channel
         
         @sync begin
             for lineage in candidates
                 Threads.@spawn begin
-                    # Take a buffer from the channel
                     buf = take!(buffer_channel)
                     process_candidate(lineage, subtxns, min_support, min_confidence, buf)
 
-                    # Send collected rules to the rules channel
                     if !isempty(buf.rules)
                         put!(rules_channel, copy(buf.rules))
-                        empty!(buf.rules) # Clear for reuse
+                        empty!(buf.rules)
                     end
                     
                     put!(buffer_channel, buf)
@@ -250,17 +127,14 @@ function apriori(txns::Transactions, min_support::Union{Int,Float64}, min_confid
             end
         end
         
-        # Collect all rules from the channel
         close(rules_channel)
-        level_rules = Vector{Arule}()
-        for rules_batch in rules_channel
-            append!(level_rules, rules_batch)
-        end
+        level_rules = vcat(rules_channel...)
         append!(rules, level_rules)
         
-        # Prepare for next level
-        current_level = Set(rule.lin for rule in level_rules)
+        # Only set up for next level if continuing
         k += 1
+        k > max_length > 0 && break
+        current_level = Set(rule.lin for rule in level_rules)
     end
     
     # Create the output DataFrame 
@@ -275,4 +149,116 @@ function apriori(txns::Transactions, min_support::Union{Int,Float64}, min_confid
         Length = [length(rule.lin) for rule in rules]
     )
     return df
+end
+
+# Helper function to create the level one rules (k=1)
+function generate_L1_rules(items, basenum, n_transactions, min_confidence)
+    level_one = Set([i] for i in 1:length(items))
+    level_rules = Vector{Arule}()
+    sizehint!(level_rules, length(level_one))
+    
+    for lin in level_one
+        index = first(lin)
+        confidence = basenum[items[index]] / n_transactions
+        
+        confidence < min_confidence && continue
+        
+        rule = Arule(
+            Int[],
+            index,
+            basenum[items[index]],
+            n_transactions,
+            confidence,
+            collect(lin)
+        )
+        push!(level_rules, rule)
+    end
+    
+    return level_rules, level_one
+end
+
+# Helper function to generate all candidates at a given k value
+function generate_candidates(current_level::Set{Vector{Int}}, k::Int, buffer_channel::Channel{ThreadBuffer}, candidate_channel::Channel{Set{Vector{Int}}}, num_buffers::Int)
+    level_arr = collect(current_level)
+    
+    isempty(level_arr) && return Set{Vector{Int}}()
+    
+    @sync begin
+        for i in 1:length(level_arr)
+            Threads.@spawn begin
+                buf = take!(buffer_channel)
+                local_candidates = take!(candidate_channel)
+                
+                for j in (i+1):length(level_arr)
+                    # Early skip for non-matching prefixes
+                    if k > 2 && level_arr[i][1:k-2] != level_arr[j][1:k-2]
+                        continue
+                    end
+                    
+                    empty!(buf.lineage)
+                    append!(buf.lineage, level_arr[i])
+                    append!(buf.lineage, level_arr[j])
+                    unique!(sort!(buf.lineage))
+                    
+                    length(buf.lineage) == k && push!(local_candidates, copy(buf.lineage))
+                end
+        
+                put!(candidate_channel, local_candidates)
+                put!(buffer_channel, buf)
+            end
+        end
+    end
+    
+    # Collect all candidate sets and refill with empty sets
+    candidates = Set{Vector{Int}}()
+    
+    for _ in 1:num_buffers
+        local_candidates = take!(candidate_channel)
+        union!(candidates, local_candidates)
+        empty!(local_candidates)                   
+        put!(candidate_channel, local_candidates)
+    end
+    
+    return candidates
+end
+
+# Helper function to generate arules based on candidates at k
+function process_candidate(lineage, subtxns, min_support, min_confidence, buf)
+    empty!(buf.rules)
+    
+    # Support check
+    fill!(buf.mask, true)
+    for item in lineage
+        buf.mask .&= view(subtxns, :, item)
+    end
+    support = count(buf.mask)
+    
+    support < min_support && return
+    
+    # Process each item as RHS
+    for i in 1:length(lineage)
+        empty!(buf.lhs)
+        append!(buf.lhs, lineage)
+        deleteat!(buf.lhs, i)
+        rhs = lineage[i]
+        
+        fill!(buf.mask, true)
+        for item in buf.lhs
+            buf.mask .&= view(subtxns, :, item)
+        end
+        coverage = count(buf.mask)
+        confidence = support / coverage
+        
+        confidence < min_confidence && continue
+        
+        rule = Arule(
+            copy(buf.lhs),
+            rhs,
+            support,
+            coverage,
+            confidence,
+            copy(lineage)
+        )
+        push!(buf.rules, rule)
+    end
 end
