@@ -1,0 +1,8 @@
+FPTree with 6 items and 13 nodes
+Root
+    ├── milk (5)
+    │   ├── eggs (4)
+    │   │   ├...
+    │   │   └...(1 more)
+    │   └...(1 more)
+    └...(3 more)

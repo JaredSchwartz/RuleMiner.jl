@@ -1,0 +1,1 @@
+SeqTxns with 9 sequences, 12 transactions, 16 items, and 46 non-zero elements

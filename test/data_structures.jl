@@ -7,6 +7,26 @@ function trunc_tester(object, nlines::Int, ncols::Int)
     return(result)
 end
 
+# Generalized printing test function
+function test_printing_outputs(object, file_prefix::String, truncated_dims::Tuple{Int,Int})
+    # Define test scenarios: (test_name, dimensions, filename)
+    scenarios = [
+        ("Full", (1000, 1000), "$(file_prefix).txt"),
+        ("Truncated", truncated_dims, "$(file_prefix)_truncated.txt"),
+        ("Minimal", (1, 10), "$(file_prefix)_minimal.txt")
+    ]
+    
+    @testset "Printing" begin
+        for (test_name, dims, filename) in scenarios
+            @testset "$test_name" begin
+                output = trunc_tester(object, dims...)
+                expected_output = read(joinpath(@__DIR__, "files", "display_outputs", filename), String)
+                @test output == expected_output
+            end
+        end
+    end
+end
+
 @testset "fptree.jl" begin
     txns = Txns(joinpath(@__DIR__,"files/frequent/data.txt"),',')
     @testset "convert Txns" begin
@@ -14,49 +34,9 @@ end
         @test sort(collect(keys(tree.header_table))) == [1, 2, 3, 4, 5, 6]
         @test sort([length(i) for i in values(tree.header_table)]) == [1, 2, 2, 2, 3, 3]
     end
-    @testset "Printing" begin
-        tree = FPTree(txns,0.3)
-        buffer = IOBuffer()
-        Base.show(buffer,"text/plain", tree)
-        output = String(take!(buffer))
-        expected_output = """
-        FPTree with 6 items and 13 nodes
-        Root
-            ├── milk (5)
-            │   ├── eggs (4)
-            │   │   ├── beer (1)
-            │   │   └── bread (1)
-            │   └── beer (1)
-            ├── bread (2)
-            │   └── ham (2)
-            │       └── cheese (1)
-            ├── beer (1)
-            │   └── cheese (1)
-            └── eggs (1)
-                └── ham (1)
-                    └── cheese (1)
-        """
-        lines = [rstrip(line) for line in eachsplit(output,'\n')]
-        lines2 = [rstrip(line) for line in eachsplit(expected_output,'\n')]
-        @test all(lines .== lines2)
-    end
-    @testset "Truncated Printing" begin
-        tree = FPTree(txns,0.3)
-        output = trunc_tester(tree,12,20)
-        expected_output = """
-        FPTree with 6 items and 13 nodes
-        Root
-            ├── milk (5)
-            │   ├── eggs (4)
-            │   │   ├...
-            │   │   └...(1 more)
-            │   └...(1 more)
-            └...(3 more)
-        """
-        lines = [rstrip(line) for line in eachsplit(output,'\n')]
-        lines2 = [rstrip(line) for line in eachsplit(expected_output,'\n')]
-        @test all(lines .== lines2)
-    end
+
+    data = FPTree(txns,0.3)
+    test_printing_outputs(data, "fptree", (12, 20))
 end
 @testset "txns.jl" begin
     item_vals = ["bacon", "beer", "bread", "buns", "butter", "cheese", "eggs", "flour", "ham", "hamburger", "hot dogs", "ketchup", "milk", "mustard", "sugar", "turkey"]
@@ -153,47 +133,8 @@ end
             @test last(data) == lastline
             @test last(data,2) == last2
         end
-        @testset "Printing" begin
-            buffer = IOBuffer()
-            Base.show(buffer,"text/plain", data)
-            output = String(take!(buffer))
-            
-            expected_output = """
-            Txns with 9 transactions, 16 items, and 36 non-zero elements
-             Index │ Items                                            
-            ───────┼──────────────────────────────────────────────────
-                 1 │ milk, eggs, bread
-                 2 │ milk, eggs, butter, sugar, flour
-                 3 │ milk, eggs, bacon, beer
-                 4 │ bread, ham, turkey
-                 5 │ bread, ham, cheese, ketchup
-                 6 │ beer, cheese, mustard, hot dogs, buns, hamburger
-                 7 │ milk, eggs, sugar
-                 8 │ milk, beer, ketchup, hamburger
-                 9 │ eggs, bacon, ham, cheese
-            """
-            lines = [rstrip(line) for line in eachsplit(output,'\n')]
-            lines2 = [rstrip(line) for line in eachsplit(expected_output,'\n')]
-            @test all(lines .== lines2)
-        end
-        @testset "Truncated Printing" begin
-            output = trunc_tester(data,13,30)
-            expected_output = """
-                Txns with 9 transactions, 16 items, and 36 non-zero elements
-                Index │ Items
-                ───────┼──────────────────────
-                    1 │ milk, eggs, bread
-                    2 │ milk, eggs, butter,…
-                    3 │ milk, eggs, bacon,…
-                    ⋮ │ ⋮
-                    7 │ milk, eggs, sugar
-                    8 │ milk, beer,…
-                    9 │ eggs, bacon, ham,…
-            """
-            lines = [strip(line) for line in eachsplit(strip(output),'\n')]
-            lines2 = [strip(line) for line in eachsplit(strip(expected_output),'\n')]
-            @test all(lines .== lines2)
-        end
+        
+    test_printing_outputs(data,"frequent",(13,30))
     end
 end
 @testset "seqtxns.jl" begin
@@ -283,49 +224,7 @@ end
             @test last(data) == lastline
             @test last(data,2) == last2
         end
-        @testset "Printing" begin
-            buffer = IOBuffer()
-            Base.show(buffer,"text/plain", data)
-            output = String(take!(buffer))
-            
-            expected_output = """
-                SeqTxns with 9 sequences, 12 transactions, 16 items, and 46 non-zero elements
-                Sequence │ Transaction │ Items                                            
-                ──────────┼─────────────┼──────────────────────────────────────────────────
-                        1 │ 1           │ milk, eggs, bread
-                          │ 2           │ eggs, ham, cheese, bacon
-                        2 │ 1           │ milk, eggs, butter, sugar, flour
-                        3 │ 1           │ milk, eggs, bacon, beer
-                        4 │ 1           │ bread, ham, turkey
-                        5 │ 1           │ bread, ham, cheese, ketchup
-                          │ 2           │ bread, ham, turkey
-                          │ 3           │ milk, eggs, sugar
-                        6 │ 1           │ cheese, beer, mustard, hot dogs, buns, hamburger
-                        7 │ 1           │ milk, eggs, sugar
-                        8 │ 1           │ milk, beer, ketchup, hamburger
-                        9 │ 1           │ eggs, ham, cheese, bacon
-            """
-            lines = [strip(line) for line in eachsplit(output,'\n')]
-            lines2 = [strip(line) for line in eachsplit(expected_output,'\n')]
-            @test all(lines .== lines2)
-        end
-        @testset "Truncated Printing" begin
-            output = trunc_tester(data,13,30)
-            expected_output = """
-            SeqTxns with 9 sequences, 12 transactions, 16 items, and 46 non-zero elements
-            Sequence │ Transaction │ Items
-            ──────────┼─────────────┼──────────────────────
-                    1 │ 1           │ milk, eggs, bread
-                      │ 2           │ eggs, ham, cheese,…
-                    2 │ 1           │ milk, eggs, butter,…
-                    ⋮ │ ⋮           │ ⋮
-                    7 │ 1           │ milk, eggs, sugar
-                    8 │ 1           │ milk, beer,…
-                    9 │ 1           │ eggs, ham, cheese,…
-            """
-            lines = [strip(line) for line in eachsplit(strip(output),'\n')]
-            lines2 = [strip(line) for line in eachsplit(strip(expected_output),'\n')]
-            @test all(lines .== lines2)
-        end
+        
+        test_printing_outputs(data,"sequential",(13,30))
     end
 end

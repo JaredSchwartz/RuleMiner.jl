@@ -1,0 +1,12 @@
+Txns with 9 transactions, 16 items, and 36 non-zero elements
+ Index │ Items
+───────┼──────────────────────────────────────────────────
+     1 │ milk, eggs, bread
+     2 │ milk, eggs, butter, sugar, flour
+     3 │ milk, eggs, bacon, beer
+     4 │ bread, ham, turkey
+     5 │ bread, ham, cheese, ketchup
+     6 │ beer, cheese, mustard, hot dogs, buns, hamburger
+     7 │ milk, eggs, sugar
+     8 │ milk, beer, ketchup, hamburger
+     9 │ eggs, bacon, ham, cheese
