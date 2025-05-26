@@ -88,7 +88,7 @@ function apriori(txns::Transactions, min_support::Union{Int,Float64}, min_confid
     n_rows = size(subtxns, 1)
     
     # Set up processing channels
-    num_buffers = Threads.nthreads()
+    num_buffers = nthreads(:default)
 
     buffer_channel = Channel{ThreadBuffer}(num_buffers)
     for _ in 1:num_buffers
@@ -113,7 +113,7 @@ function apriori(txns::Transactions, min_support::Union{Int,Float64}, min_confid
         
         @sync begin
             for lineage in candidates
-                Threads.@spawn begin
+                @spawn begin
                     buf = take!(buffer_channel)
                     process_candidate(lineage, subtxns, min_support, min_confidence, buf)
 
@@ -185,7 +185,7 @@ function generate_candidates(current_level::Set{Vector{Int}}, k::Int, buffer_cha
     
     @sync begin
         for i in 1:length(level_arr)
-            Threads.@spawn begin
+            @spawn begin
                 buf = take!(buffer_channel)
                 local_candidates = take!(candidate_channel)
                 
