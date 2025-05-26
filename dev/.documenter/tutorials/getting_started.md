@@ -21,24 +21,26 @@ The mining algorithms in RuleMiner utilize multithreading to process data concur
 To enable multithreading when launching Julia from a terminal, use the `-t` argument:
 
 ```shell
-julia -t auto # Use all available CPU cores
+julia -t auto # Use all available CPU cores for computation
 ```
 
 
 ```shell
-julia -t 8 # Dedicate 8 cores specifically
+julia -t 8 # Dedicate 8 cores for computation
 ```
 
+
+Starting with Julia 1.12, the above commands automatically include one additional interactive thread (so `julia -t 8` creates 8 computational threads + 1 interactive thread for 9 total), which helps keep Julia responsive during computation.
 
 It is recommended to use the `auto` setting with RuleMiner.jl for best performance.
 
 If you&#39;re using the official Julia extension for VS Code, the parameter passed into -t is called `julia.NumThreads` in VS Code settings for all Julia instances created in that IDE. Other IDEs may have similar ways to configure the arguments passed into Julia on startup.
 
-You can verify the number of threads available to Julia with:
+You can verify the number of computational threads available to Julia with:
 
 ```julia
 using Base.Threads
-println("Julia is using $(nthreads()) threads")
+println("Julia is using $(nthreads(:default)) computational threads")
 ```
 
 
