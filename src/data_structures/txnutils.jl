@@ -342,26 +342,23 @@ function fast_convert(S::SubArray{Bool, 2, <:SparseMatrixCSC{Bool}})::BitMatrix
     total_chunks = length(chunks)
     
     # Determine appropriate chunking for work with balanced size and count
-    num_threads = nthreads()
-    min_items_per_chunk = 100               # Minimum items per chunk to avoid excessive overhead
-    target_chunk_count = num_threads * 4    # Target 4 chunks per thread for better balancing
+    num_threads = nthreads(:default)
+    min_items_per_chunk = 100
+    target_chunk_count = num_threads * 4
     
-    # Calculate chunk size that meets both our minimum size and desired count
-    ideal_chunk_size = max(min_items_per_chunk, cld(total_chunks, target_chunk_count))
+    chunk_size = max(min_items_per_chunk, cld(total_chunks, target_chunk_count)) 
+    chunk_counter = Atomic{Int}(1)
     
-    # Create a channel of work chunks
-    work_channel = Channel{Tuple{Int,Int}}(target_chunk_count) do ch
-        for chunk_start in 1:ideal_chunk_size:total_chunks
-            chunk_end = min(chunk_start + ideal_chunk_size - 1, total_chunks)
-            put!(ch, (chunk_start, chunk_end))
-        end
-    end
-    
-    # Process chunks in parallel
     @sync begin
         for _ in 1:num_threads
             @spawn begin
-                for (chunk_start, chunk_end) in work_channel
+                while true
+                    # Calculate next chunk range
+                    chunk_start = atomic_add!(chunk_counter, chunk_size)
+                    chunk_start > total_chunks && break
+
+                    chunk_end = min(chunk_start + chunk_size - 1, total_chunks)
+                    
                     # Calculate bit range this thread is responsible for
                     bit_start = (chunk_start - 1) << 6
                     bit_end = (chunk_end << 6) - 1
