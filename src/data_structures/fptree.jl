@@ -106,62 +106,67 @@ mutable struct FPTree
             txns.colkeys
         )
 
-        # Determine chunks for parallel processing
+        # Calculate chunks for parallel processing
+        num_threads = nthreads(:default)
         min_chunk_size = 50
-        max_chunks = min(nthreads() * 4, cld(n_transactions, min_chunk_size))
-        chunk_size = max(min_chunk_size, cld(n_transactions, max_chunks))
-        n_chunks = min(max_chunks, cld(n_transactions, chunk_size))
-        
-        # Create a channel of buffers
-        buffer_size = length(sorted_cols)
-        buffer_channel = Channel{Vector{Int}}(nthreads())
-        for _ in 1:nthreads()
-            put!(buffer_channel, Vector{Int}(undef, buffer_size))
-        end
+        chunk_size = max(min_chunk_size, cld(n_transactions, num_threads * 4))
+        total_chunks = cld(n_transactions, chunk_size)
+        chunk_counter = Atomic{Int}(0)
 
-        # Create a channel for local trees
-        tree_channel = Channel{FPNode}(n_chunks)
+        # Set up parallel processing channels
+        tree_channel = Channel{FPNode}(total_chunks)        # Output Channel
+        buffer_channel = Channel{Vector{Int}}(num_threads)  # Thread-local pool
+        for _ in 1:num_threads
+            put!(buffer_channel, Vector{Int}(undef, length(sorted_cols)))
+        end
         
-        # Process transactions in parallel
         @sync begin
-            for (chunk_id, chunk_start) in enumerate(1:chunk_size:n_transactions)
-                Threads.@spawn begin
-                    # Take a buffer from the channel
+            for _ in 1:num_threads
+                @spawn begin
+                    
                     buffer = take!(buffer_channel)
                     
-                    # Create a local tree for this chunk
-                    local_tree = FPNode(-1)
                     
-                    chunk_end = min(chunk_start + chunk_size - 1, n_transactions)
-                    
-                    # Process each transaction in the chunk
-                    for row in chunk_start:chunk_end
-                        transaction_size = 0
-                        @inbounds for (new_idx, col) in enumerate(sorted_cols)
-                            if txns.matrix[row, col]
-                                transaction_size += 1
-                                buffer[transaction_size] = new_idx
+                    while true
+
+                        # Use a work-stealing pattern with atomic_add! on the chunk_counter
+                        chunk_number = atomic_add!(chunk_counter, 1)
+                        chunk_number >= total_chunks && break
+                        
+                        chunk_start = chunk_number * chunk_size + 1
+                        chunk_end = min(chunk_start + chunk_size - 1, n_transactions)
+                        
+                        
+                        local_tree = FPNode(-1)
+                        
+                        for row in chunk_start:chunk_end
+
+                            # Read transaction into the buffer
+                            transaction_size = 0
+                            @inbounds for (new_idx, col) in enumerate(sorted_cols)
+                                if txns.matrix[row, col]
+                                    transaction_size += 1
+                                    buffer[transaction_size] = new_idx
+                                end
+                            end
+                            
+                            # Insert the transaction into the local tree
+                            node = local_tree
+                            @inbounds for i in 1:transaction_size
+                                item = buffer[i]
+                                child = get(node.children, item, nothing)
+                                if isnothing(child)
+                                    child = FPNode(item, node)
+                                    node.children[item] = child
+                                end
+                                child.support += 1
+                                node = child
                             end
                         end
                         
-                        # Insert the transaction into the local tree
-                        node = local_tree
-                        @inbounds for i in 1:transaction_size
-                            item = buffer[i]
-                            child = get(node.children, item, nothing)
-                            if isnothing(child)
-                                child = FPNode(item, node)
-                                node.children[item] = child
-                            end
-                            child.support += 1
-                            node = child
-                        end
+                        put!(tree_channel, local_tree)
                     end
                     
-                    # Put the local tree in the tree channel
-                    put!(tree_channel, local_tree)
-                    
-                    # Return buffer to the channel
                     put!(buffer_channel, buffer)
                 end
             end
