@@ -60,3 +60,27 @@ end
     algorithms = [("fpmax.jl", fpmax), ("genmax.jl", genmax)]
     test_algorithms(algorithms, 0.3, 3, max_items, max_supports, max_N, max_length, data)
 end
+
+@testset "recovery.jl" begin
+    test_support = 2
+    expected = eclat(data, test_support)
+    setsorter!(expected)
+
+    @testset "recover_closed" begin
+        closed_sets = LCM(data, test_support)
+        recovered = recover_closed(closed_sets, test_support)
+        setsorter!(recovered)
+        
+        @test recovered.Itemset == expected.Itemset
+        @test recovered.N == expected.N
+        @test recovered.Length == expected.Length
+    end
+    @testset "recover_maximal" begin
+        maximal_sets = genmax(data, test_support)
+        recovered = recover_maximal(maximal_sets)
+        setsorter!(recovered)
+        
+        @test recovered.Itemset == expected.Itemset
+        @test recovered.Length == expected.Length
+    end
+end
