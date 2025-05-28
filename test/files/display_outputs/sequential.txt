@@ -1,0 +1,15 @@
+SeqTxns with 9 sequences, 12 transactions, 16 items, and 46 non-zero elements
+ Sequence │ Transaction │ Items
+──────────┼─────────────┼──────────────────────────────────────────────────
+        1 │ 1           │ milk, eggs, bread
+          │ 2           │ eggs, ham, cheese, bacon
+        2 │ 1           │ milk, eggs, butter, sugar, flour
+        3 │ 1           │ milk, eggs, bacon, beer
+        4 │ 1           │ bread, ham, turkey
+        5 │ 1           │ bread, ham, cheese, ketchup
+          │ 2           │ bread, ham, turkey
+          │ 3           │ milk, eggs, sugar
+        6 │ 1           │ cheese, beer, mustard, hot dogs, buns, hamburger
+        7 │ 1           │ milk, eggs, sugar
+        8 │ 1           │ milk, beer, ketchup, hamburger
+        9 │ 1           │ eggs, ham, cheese, bacon

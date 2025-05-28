@@ -7,6 +7,40 @@ function trunc_tester(object, nlines::Int, ncols::Int)
     return(result)
 end
 
+# Generalized printing test function
+function test_printing(object, file_prefix::String, truncated_dims::Tuple{Int,Int})
+    # Define test scSenarios: (test_name, dimensions, filename)
+    scenarios = [
+        ("Full", (1000, 1000), "$(file_prefix).txt"),
+        ("Truncated", truncated_dims, "$(file_prefix)_truncated.txt"),
+        ("Minimal", (1, 10), "$(file_prefix)_minimal.txt")
+    ]
+    
+    for (test_name, dims, filename) in scenarios
+        @testset "$test_name" begin
+            output = trunc_tester(object, dims...)
+            expected_output = read(joinpath(@__DIR__, "files", "display_outputs", filename), String)
+            @test output == expected_output
+        end
+    end
+end
+
+# Txns testing function
+function test_Txns(data::Txns, mat_size::Tuple{Int,Int}, total::Int, colkeys::Vector{String}, linekeys::Vector{String})
+    @test size(data.matrix) == mat_size
+    @test sum(data.matrix) == total
+    @test sort(data.colkeys) == colkeys
+    @test sort(data.linekeys) == linekeys
+end
+
+# SeqTxns testing function
+function test_SeqTxns(data::SeqTxns, mat_size::Tuple{Int,Int}, total::Int, colkeys::Vector{String}, index::Vector{UInt32})
+    @test size(data.matrix) == mat_size
+    @test sum(data.matrix) == total
+    @test sort(data.colkeys) == colkeys
+    @test data.index == index
+end
+
 @testset "fptree.jl" begin
     txns = Txns(joinpath(@__DIR__,"files/frequent/data.txt"),',')
     @testset "convert Txns" begin
@@ -15,131 +49,74 @@ end
         @test sort([length(i) for i in values(tree.header_table)]) == [1, 2, 2, 2, 3, 3]
     end
     @testset "Printing" begin
-        tree = FPTree(txns,0.3)
-        buffer = IOBuffer()
-        Base.show(buffer,"text/plain", tree)
-        output = String(take!(buffer))
-        expected_output = """
-        FPTree with 6 items and 13 nodes
-        Root
-            ├── milk (5)
-            │   ├── eggs (4)
-            │   │   ├── beer (1)
-            │   │   └── bread (1)
-            │   └── beer (1)
-            ├── bread (2)
-            │   └── ham (2)
-            │       └── cheese (1)
-            ├── beer (1)
-            │   └── cheese (1)
-            └── eggs (1)
-                └── ham (1)
-                    └── cheese (1)
-        """
-        lines = [rstrip(line) for line in eachsplit(output,'\n')]
-        lines2 = [rstrip(line) for line in eachsplit(expected_output,'\n')]
-        @test all(lines .== lines2)
-    end
-    @testset "Truncated Printing" begin
-        tree = FPTree(txns,0.3)
-        output = trunc_tester(tree,12,20)
-        expected_output = """
-        FPTree with 6 items and 13 nodes
-        Root
-            ├── milk (5)
-            │   ├── eggs (4)
-            │   │   ├...
-            │   │   └...(1 more)
-            │   └...(1 more)
-            └...(3 more)
-        """
-        lines = [rstrip(line) for line in eachsplit(output,'\n')]
-        lines2 = [rstrip(line) for line in eachsplit(expected_output,'\n')]
-        @test all(lines .== lines2)
+        data = FPTree(txns,0.3)
+        test_printing(data, "fptree", (12, 20))
     end
 end
+
 @testset "txns.jl" begin
+
     item_vals = ["bacon", "beer", "bread", "buns", "butter", "cheese", "eggs", "flour", "ham", "hamburger", "hot dogs", "ketchup", "milk", "mustard", "sugar", "turkey"]
     index_vals = ["1111", "1112", "1113", "1114", "1115", "1116", "1117", "1118", "1119"]
+    frequent_folder = joinpath(@__DIR__,"files","frequent")
 
     @testset "Load Files" begin
         @testset "regular load" begin
-            data = Txns(joinpath(@__DIR__,"files/frequent/data.txt"),',')
-            @test size(data.matrix) == (9,16)
-            @test sum(data.matrix) == 36
-            @test sort(data.colkeys) == item_vals
-            @test isempty(data.linekeys)
+            data = Txns(joinpath(frequent_folder,"data.txt"),',')
+            test_Txns(data, (9,16), 36, item_vals, String[])
         end
-
         @testset "line indexes" begin
-            data = Txns(joinpath(@__DIR__,"files/frequent/data_indexed.txt"),',';id_col = true)
-            @test size(data.matrix) == (9,16)
-            @test sum(data.matrix) == 36
-            @test sort(data.colkeys) == item_vals
-            @test sort(data.linekeys) == index_vals
+            data = Txns(joinpath(frequent_folder,"data_indexed.txt"),',';id_col = true)
+            test_Txns(data, (9,16), 36, item_vals, index_vals)
         end
-
         @testset "skip lines" begin
-            data = Txns(joinpath(@__DIR__,"files/frequent/data_header.txt"),',';skiplines=2)
-            @test size(data.matrix) == (9,16)
-            @test sum(data.matrix) == 36
-            @test sort(data.colkeys) == item_vals
-            @test isempty(data.linekeys)
-        end
+            data = Txns(joinpath(frequent_folder,"data_header.txt"),',';skiplines=2)
+            test_Txns(data, (9,16), 36, item_vals, String[])
 
+            @test_throws "skiplines must be a non-negative integer" Txns(joinpath(frequent_folder,"data_header.txt"),','; skiplines= -1) 
+        end
         @testset "n lines" begin
-            data = Txns(joinpath(@__DIR__,"files/frequent/data.txt"),',',nlines = 1)
-            @test size(data.matrix) == (1,3)
-            @test sum(data.matrix) == 3
-            @test sort(data.colkeys) == ["bread", "eggs", "milk"]
-            @test isempty(data.linekeys)
+            data = Txns(joinpath(frequent_folder,"data.txt"),',',nlines = 1)
+            test_Txns(data, (1,3), 3, ["bread", "eggs", "milk"], String[])
+
+            @test_throws "nlines must be a non-negative integer" Txns(joinpath(frequent_folder,"data.txt"),','; nlines = -1) 
         end
         @testset "multi delim" begin
-            data = Txns(joinpath(@__DIR__,"files/frequent/data_multidelim.txt"),"||")
-            @test size(data.matrix) == (9,16)
-            @test sum(data.matrix) == 36
-            @test sort(data.colkeys) == item_vals
-            @test isempty(data.linekeys)
+            data = Txns(joinpath(frequent_folder,"data_multidelim.txt"),"||")
+            test_Txns(data, (9,16), 36, item_vals, String[])
         end
     end
 
     @testset "convert df" begin
-        data = Txns(joinpath(@__DIR__,"files/frequent/data.txt"),',')
+        data = Txns(joinpath(frequent_folder,"data.txt"),',')
         dftest = txns_to_df(data)
         dftest_invalid = insertcols(dftest, :x_column => fill('x', nrow(dftest)))
-        data = Txns(joinpath(@__DIR__,"files/frequent/data_indexed.txt"),',';id_col = true)
+        data = Txns(joinpath(frequent_folder,"data_indexed.txt"),',';id_col = true)
         dftest_index =  txns_to_df(data)
 
         @testset "without index" begin
             data = Txns(dftest)
-            @test size(data.matrix) == (9,16)
-            @test sum(data.matrix) == 36
-            @test sort(data.colkeys) == item_vals
-            @test isempty(data.linekeys)
+            test_Txns(data, (9,16), 36, item_vals, String[])
         end
-
         @testset "with index" begin
             data = Txns(dftest_index,:Index)
-            @test size(data.matrix) == (9,16)
-            @test sum(data.matrix) == 36
-            @test sort(data.colkeys) == item_vals
-            @test sort(data.linekeys) == index_vals
+            test_Txns(data, (9,16), 36, item_vals, index_vals)
         end
-
         @testset "invalid" begin
             @test_throws "Column 'x_column' contains values that cannot be coerced to boolean." Txns(dftest_invalid)
         end
     end
+
     @testset "Default Constructor" begin
-        newstruct = Txns(joinpath(@__DIR__,"files/frequent/data.txt"),',')
+        newstruct = Txns(joinpath(frequent_folder,"data.txt"),',')
         data = Txns(newstruct.matrix, newstruct.colkeys, newstruct.linekeys)
-        @test size(data.matrix) == (9,16)
-        @test sum(data.matrix) == 36
-        @test sort(data.colkeys) == item_vals
-        @test isempty(data.linekeys)
+        test_Txns(data, (9,16), 36, item_vals, String[])
+
+        @test_throws "Number of columns in matrix (16) must match length of colkeys (2)" Txns(newstruct.matrix, newstruct.colkeys[1:2], newstruct.linekeys)
     end
+
     @testset "Auxiliary Functions" begin
-        data = Txns(joinpath(@__DIR__,"files/frequent/data.txt"),',')
+        data = Txns(joinpath(frequent_folder,"data.txt"),',')
         @testset "first()" begin
             firstline = ["milk", "eggs", "bread"]
             first2 = [["milk", "eggs", "bread"], ["milk", "eggs", "butter", "sugar", "flour"]]
@@ -154,115 +131,61 @@ end
             @test last(data,2) == last2
         end
         @testset "Printing" begin
-            buffer = IOBuffer()
-            Base.show(buffer,"text/plain", data)
-            output = String(take!(buffer))
-            
-            expected_output = """
-            Txns with 9 transactions, 16 items, and 36 non-zero elements
-             Index │ Items                                            
-            ───────┼──────────────────────────────────────────────────
-                 1 │ milk, eggs, bread
-                 2 │ milk, eggs, butter, sugar, flour
-                 3 │ milk, eggs, bacon, beer
-                 4 │ bread, ham, turkey
-                 5 │ bread, ham, cheese, ketchup
-                 6 │ beer, cheese, mustard, hot dogs, buns, hamburger
-                 7 │ milk, eggs, sugar
-                 8 │ milk, beer, ketchup, hamburger
-                 9 │ eggs, bacon, ham, cheese
-            """
-            lines = [rstrip(line) for line in eachsplit(output,'\n')]
-            lines2 = [rstrip(line) for line in eachsplit(expected_output,'\n')]
-            @test all(lines .== lines2)
-        end
-        @testset "Truncated Printing" begin
-            output = trunc_tester(data,13,30)
-            expected_output = """
-                Txns with 9 transactions, 16 items, and 36 non-zero elements
-                Index │ Items
-                ───────┼──────────────────────
-                    1 │ milk, eggs, bread
-                    2 │ milk, eggs, butter,…
-                    3 │ milk, eggs, bacon,…
-                    ⋮ │ ⋮
-                    7 │ milk, eggs, sugar
-                    8 │ milk, beer,…
-                    9 │ eggs, bacon, ham,…
-            """
-            lines = [strip(line) for line in eachsplit(strip(output),'\n')]
-            lines2 = [strip(line) for line in eachsplit(strip(expected_output),'\n')]
-            @test all(lines .== lines2)
+            test_printing(data,"frequent",(13,30))
         end
     end
 end
+
 @testset "seqtxns.jl" begin
 
     item_vals = ["bacon", "beer", "bread", "buns", "butter", "cheese", "eggs", "flour", "ham", "hamburger", "hot dogs", "ketchup", "milk", "mustard", "sugar", "turkey"]
     index_vals = ["1111", "1112", "1113", "1114", "1115", "1116", "1117", "1118", "1119","1120", "1121", "1122"]
     seq_index = UInt32[1, 3, 4, 5, 6, 9, 10, 11, 12]
+    sequential_folder = joinpath(@__DIR__,"files","sequential")
 
     @testset "Load Files" begin
         @testset "regular load" begin
-            data = SeqTxns(joinpath(@__DIR__,"files/sequential/data.txt"),',',';')
-            @test size(data.matrix) == (12,16)
-            @test sum(data.matrix) == 46
-            @test sort(data.colkeys) == item_vals
-            @test data.index == seq_index
+            data = SeqTxns(joinpath(sequential_folder,"data.txt"),',',';')
+            test_SeqTxns(data, (12,16), 46, item_vals, seq_index)
         end
-
         @testset "skip lines" begin
-            data = SeqTxns(joinpath(@__DIR__,"files/sequential/data_header.txt"),',',';';skiplines=2)
-            @test size(data.matrix) == (12,16)
-            @test sum(data.matrix) == 46
-            @test sort(data.colkeys) == item_vals
-            @test data.index == seq_index
+            data = SeqTxns(joinpath(sequential_folder,"data_header.txt"),',',';';skiplines=2)
+            test_SeqTxns(data, (12,16), 46, item_vals, seq_index)
         end
-
         @testset "n lines" begin
-            data = SeqTxns(joinpath(@__DIR__,"files/sequential/data.txt"),',',';',nlines = 1)
-            @test size(data.matrix) == (2,6)
-            @test sum(data.matrix) == 7
-            @test sort(data.colkeys) == ["bacon", "bread", "cheese", "eggs", "ham", "milk"]
-            @test data.index == UInt32[1]
+            data = SeqTxns(joinpath(sequential_folder,"data.txt"),',',';',nlines = 1)
+            test_SeqTxns(data, (2,6), 7, ["bacon", "bread", "cheese", "eggs", "ham", "milk"], UInt32[1])
         end
     end
+
     @testset "convert df" begin
-        data = SeqTxns(joinpath(@__DIR__,"files/sequential/data.txt"),',',';')
+        data = SeqTxns(joinpath(sequential_folder,"data.txt"),',',';')
         dftest = txns_to_df(data,true)
         dftest_data = txns_to_df(data,false)
         dftest_invalid = insertcols(dftest, :x_column => fill('x', nrow(dftest)))
 
         @testset "without index" begin
             data = SeqTxns(dftest,:SequenceIndex)
-            @test size(data.matrix) == (12,16)
-            @test sum(data.matrix) == 46
-            @test sort(data.colkeys) == item_vals
-            @test data.index == seq_index
+            test_SeqTxns(data, (12,16), 46, item_vals, seq_index)
         end
-        
         @testset "data only" begin
             data = Txns(dftest_data)
-            @test size(data.matrix) == (12,16)
-            @test sum(data.matrix) == 46
-            @test sort(data.colkeys) == item_vals
+            test_Txns(data, (12,16), 46, item_vals, String[])
         end
-
         @testset "invalid" begin
             @test_throws "Column 'x_column' contains values that cannot be coerced to boolean." SeqTxns(dftest_invalid,:SequenceIndex)
         end
+    end
 
-    end
     @testset "Default Constructor" begin
-        newstruct = SeqTxns(joinpath(@__DIR__,"files/sequential/data.txt"),',',';')
+        newstruct = SeqTxns(joinpath(sequential_folder,"data.txt"),',',';')
         data = SeqTxns(newstruct.matrix, newstruct.colkeys, newstruct.index)
-        @test size(data.matrix) == (12,16)
-        @test sum(data.matrix) == 46
-        @test sort(data.colkeys) == item_vals
-        @test data.index == seq_index
+        test_SeqTxns(data, (12,16), 46, item_vals, seq_index)
     end
+
     @testset "Auxiliary Functions" begin
-        data = SeqTxns(joinpath(@__DIR__,"files/sequential/data.txt"),',',';')
+        data = SeqTxns(joinpath(sequential_folder,"data.txt"),',',';')
+
         @testset "length" begin
             @test length(data) == 9
         end
@@ -284,48 +207,7 @@ end
             @test last(data,2) == last2
         end
         @testset "Printing" begin
-            buffer = IOBuffer()
-            Base.show(buffer,"text/plain", data)
-            output = String(take!(buffer))
-            
-            expected_output = """
-                SeqTxns with 9 sequences, 12 transactions, 16 items, and 46 non-zero elements
-                Sequence │ Transaction │ Items                                            
-                ──────────┼─────────────┼──────────────────────────────────────────────────
-                        1 │ 1           │ milk, eggs, bread
-                          │ 2           │ eggs, ham, cheese, bacon
-                        2 │ 1           │ milk, eggs, butter, sugar, flour
-                        3 │ 1           │ milk, eggs, bacon, beer
-                        4 │ 1           │ bread, ham, turkey
-                        5 │ 1           │ bread, ham, cheese, ketchup
-                          │ 2           │ bread, ham, turkey
-                          │ 3           │ milk, eggs, sugar
-                        6 │ 1           │ cheese, beer, mustard, hot dogs, buns, hamburger
-                        7 │ 1           │ milk, eggs, sugar
-                        8 │ 1           │ milk, beer, ketchup, hamburger
-                        9 │ 1           │ eggs, ham, cheese, bacon
-            """
-            lines = [strip(line) for line in eachsplit(output,'\n')]
-            lines2 = [strip(line) for line in eachsplit(expected_output,'\n')]
-            @test all(lines .== lines2)
-        end
-        @testset "Truncated Printing" begin
-            output = trunc_tester(data,13,30)
-            expected_output = """
-            SeqTxns with 9 sequences, 12 transactions, 16 items, and 46 non-zero elements
-            Sequence │ Transaction │ Items
-            ──────────┼─────────────┼──────────────────────
-                    1 │ 1           │ milk, eggs, bread
-                      │ 2           │ eggs, ham, cheese,…
-                    2 │ 1           │ milk, eggs, butter,…
-                    ⋮ │ ⋮           │ ⋮
-                    7 │ 1           │ milk, eggs, sugar
-                    8 │ 1           │ milk, beer,…
-                    9 │ 1           │ eggs, ham, cheese,…
-            """
-            lines = [strip(line) for line in eachsplit(strip(output),'\n')]
-            lines2 = [strip(line) for line in eachsplit(strip(expected_output),'\n')]
-            @test all(lines .== lines2)
+            test_printing(data,"sequential",(13,30))
         end
     end
 end
