@@ -19,7 +19,7 @@ using SparseArrays
 abstract type Transactions end
 include("data_structures/txns.jl")
 include("data_structures/seqtxns.jl")
-include("data_structures/txnutils.jl")
+include("utils/txnutils.jl")
 
 export Txns
 export SeqTxns
@@ -29,7 +29,7 @@ export txns_to_df
 #=================FPTree Objects=================#
 include("data_structures/fpnode.jl")
 include("data_structures/fptree.jl")
-include("data_structures/fputils.jl")
+include("utils/fputils.jl")
 
 export FPNode
 export FPTree
@@ -43,7 +43,7 @@ export apriori
 include("itemsets/frequent/eclat.jl")
 include("itemsets/frequent/fpgrowth.jl")
 include("itemsets/frequent/recovery.jl")
-include("itemsets/itemset_utils.jl")
+include("utils/itemset_utils.jl")
 
 export eclat
 export fpgrowth
