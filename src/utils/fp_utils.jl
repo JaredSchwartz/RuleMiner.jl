@@ -1,4 +1,4 @@
-#= fputils.jl
+#= fp_utils.jl
 Utility functions for working with FP trees
 Licensed under the MIT license. See https://github.com/JaredSchwartz/RuleMiner.jl/blob/main/LICENSE
 =#

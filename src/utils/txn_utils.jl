@@ -1,4 +1,4 @@
-#= txnutils.jl
+#= txn_utils.jl
 Utility functions for creating and converting Transactions objects
 Licensed under the MIT license. See https://github.com/JaredSchwartz/RuleMiner.jl/blob/main/LICENSE
 =#
