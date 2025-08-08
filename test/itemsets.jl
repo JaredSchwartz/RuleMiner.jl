@@ -25,7 +25,7 @@ function test_algorithms(algorithms, perc_sup, abs_sup, expected_items, expected
                 end
             end
             @testset "Errors" begin
-                invalid_supports = Any[-1,0,-0.5,0.0]
+                invalid_supports = Any[-0.5,0.0,1.5,-1,0,data.n_transactions+1]
                 for val in invalid_supports
                     @test_throws DomainError alg_func(data,val)
                 end

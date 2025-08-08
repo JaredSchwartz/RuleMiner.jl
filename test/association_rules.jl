@@ -45,7 +45,7 @@ rule_Length = [1, 1, 1, 1, 2, 2, 1, 1]
         @test minimum(rules[:,:Confidence]) >= min_conf
     end
     @testset "Errors" begin
-        invalid_supports = Any[-1,0,-0.5,0.0]
+        invalid_supports = Any[-0.5,0.0,1.5,-1,0,data.n_transactions+1]
         for val in invalid_supports
             @test_throws DomainError apriori(data,val)
         end
