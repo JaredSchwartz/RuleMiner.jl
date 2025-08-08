@@ -65,7 +65,7 @@ println(mushrooms)
 ```
 
 
-```
+```ansi
 Txns with 8124 transactions, 119 items, and 186852 non-zero elements
  Index │ Items
 ───────┼────────────────────────────────────────────────────────────────────────
@@ -101,7 +101,7 @@ println(first(mushroom_df,10))
 ```
 
 
-```
+```ansi
 10×119 DataFrame
  Row │ 1      3      9      13     23     25     34     36     38     40     52     54     59     63     67     76     85     86     90     93     98     107    113    2      14     26     39     55     99     108    114    4      15     27     41     115    10     16     24     28     37     53     94     109    42     43     110    44     11     64     5      111    6      56     116    57     65     117    100    60     45     68     77     69     78     46     17     29     61     66     70     79     95     101    71     18     30     80     19     47     58     72     91     102    112    118    31     48     20     96     119    103    21     7      81     22     32     82     12     8      49     35     50     73     83     87     51     88     104    33     74     84     92     97     105    106    62     75     89
      │ Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64  Int64
@@ -127,7 +127,7 @@ println(mushrooms)
 ```
 
 
-```
+```ansi
 Txns with 8124 transactions, 119 items, and 186852 non-zero elements
  Index │ Items
 ───────┼────────────────────────────────────────────────────────────────────────
@@ -166,7 +166,7 @@ println(first(rules,15))
 ```
 
 
-```
+```ansi
 15×8 DataFrame
  Row │ LHS       RHS     Support   Confidence  Coverage  Lift      N      Length
      │ Array…    String  Float64   Float64     Float64   Float64   Int64  Int64
@@ -202,7 +202,7 @@ println(first(rules,15))
 ```
 
 
-```
+```ansi
 15×8 DataFrame
  Row │ LHS       RHS     Support   Confidence  Coverage  Lift      N      Length
      │ Array…    String  Float64   Float64     Float64   Float64   Int64  Int64
