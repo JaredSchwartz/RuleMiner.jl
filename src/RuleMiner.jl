@@ -22,7 +22,7 @@ include("utils/core_utils.jl")
 abstract type Transactions end
 include("data_structures/txns.jl")
 include("data_structures/seqtxns.jl")
-include("utils/txnutils.jl")
+include("utils/txn_utils.jl")
 
 export Txns
 export SeqTxns
@@ -32,7 +32,7 @@ export txns_to_df
 #=================FPTree Objects=================#
 include("data_structures/fpnode.jl")
 include("data_structures/fptree.jl")
-include("utils/fputils.jl")
+include("utils/fp_utils.jl")
 
 export FPNode
 export FPTree
