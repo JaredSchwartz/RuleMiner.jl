@@ -59,7 +59,7 @@ https://doi.org/10.1109/TKDE.2005.166.
 """
 function fpmax(data::Union{Transactions,FPTree}, min_support::Union{Int,Float64})::DataFrame
     n_transactions = data.n_transactions
-    min_support = min_support isa Float64 ? ceil(Int, min_support * n_transactions) : min_support
+    min_support = clean_support(min_support, n_transactions)
     tree = data isa FPTree ? data : FPTree(data,min_support)
 
     min_support >= tree.min_support || throw(DomainError(min_support,"Minimum support must be greater than or equal to the FPTree's min_support: $(tree.min_support)"))

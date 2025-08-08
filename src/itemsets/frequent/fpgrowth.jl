@@ -52,7 +52,7 @@ SIGMOD Rec. 29, no. 2 (May 16, 2000): 1–12. https://doi.org/10.1145/335191.335
 """
 function fpgrowth(data::Union{Transactions,FPTree}, min_support::Union{Int,Float64})::DataFrame
     n_transactions = data.n_transactions
-    min_support = min_support isa Float64 ? ceil(Int, min_support * n_transactions) : min_support
+    min_support = clean_support(min_support, n_transactions)
     tree = data isa FPTree ? data : FPTree(data,min_support)
 
     min_support >= tree.min_support || throw(DomainError(min_support,"Minimum support must be greater than or equal to the FPTree's min_support: $(tree.min_support)"))
