@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 520">
+  <!-- Background -->
+  <rect x="0" y="0" width="800" height="520" fill="#ffffff"/>
+  
+  <!-- Frequent Itemsets Container - largest (100%) -->
+  <rect x="50" y="50" width="700" height="400" rx="15" ry="15" fill="#4b6cb7" stroke="#000" stroke-width="2" />
+  
+  <!-- Closed Itemsets Container - smaller (20% of frequent) -->
+  <rect x="270" y="150" width="260" height="200" rx="15" ry="15" fill="#3a7bd5" stroke="#000" stroke-width="2" />
+  
+  <!-- Maximal Itemsets Container - smallest (12% of frequent, 60% of closed) -->
+  <rect x="320" y="200" width="160" height="100" rx="15" ry="15" fill="#2980b9" stroke="#000" stroke-width="2" />
+  
+  <!-- Labels -->
+  <g font-family="Arial, sans-serif" font-weight="bold" text-anchor="middle">
+    <!-- Frequent Label - centered between its top border and closed top border -->
+    <text x="400" y="110" font-size="32" fill="#fff">Frequent</text>
+    
+    <!-- Closed Label - centered between its top border and maximal top border -->
+    <text x="400" y="182" font-size="28" fill="#fff">Closed</text>
+    
+    <!-- Maximal Label - centered within maximal box -->
+    <text x="400" y="250" font-size="24" fill="#fff">Maximal</text>
+  </g>
+  
+  <!-- Title above diagram -->
+  <text x="400" y="30" font-family="Arial, sans-serif" font-weight="bold" font-size="24" text-anchor="middle">Itemset Types</text>
+  
+  <!-- Simplified explanatory text below the diagram -->
+  <text x="400" y="490" font-family="Arial, sans-serif" font-weight="bold" font-size="18" text-anchor="middle" fill="#000">Maximal ⊂ Closed ⊂ Frequent</text>
+</svg>
