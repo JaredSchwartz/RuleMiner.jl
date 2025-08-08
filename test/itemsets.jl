@@ -24,6 +24,12 @@ function test_algorithms(algorithms, perc_sup, abs_sup, expected_items, expected
                     @test sets.Length == expected_length
                 end
             end
+            @testset "Errors" begin
+                invalid_supports = Any[-1,0,-0.5,0.0]
+                for val in invalid_supports
+                    @test_throws DomainError alg_func(data,val)
+                end
+            end
         end
     end
 end

@@ -15,6 +15,9 @@ using Mmap
 using Base.Threads
 using SparseArrays
 
+#===============Core Package Utils===============#
+include("utils/core_utils.jl")
+
 #==============Transactions Objects==============#
 abstract type Transactions end
 include("data_structures/txns.jl")

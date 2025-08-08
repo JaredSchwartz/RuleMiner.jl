@@ -45,7 +45,7 @@ function carpenter(txns::Transactions, min_support::Union{Int,Float64})
     n_transactions, n_items = size(txns.matrix)
     
     # Handle min_support as a float value
-    min_support = min_support isa Float64 ? ceil(Int, min_support * n_transactions) : min_support
+    min_support = clean_support(min_support, n_transactions)
     
     matrix, sorted_items = RuleMiner.prune_matrix(txns.matrix, min_support)
     

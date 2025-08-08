@@ -44,4 +44,10 @@ rule_Length = [1, 1, 1, 1, 2, 2, 1, 1]
         rules = apriori(data,rule_abs_sup,min_conf,rule_max_len)
         @test minimum(rules[:,:Confidence]) >= min_conf
     end
+    @testset "Errors" begin
+        invalid_supports = Any[-1,0,-0.5,0.0]
+        for val in invalid_supports
+            @test_throws DomainError apriori(data,val)
+        end
+    end
 end

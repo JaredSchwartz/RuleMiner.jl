@@ -44,9 +44,10 @@ result = genmax(txns, 5_000)
 Gouda, Karam, and Mohammed J. Zaki. “GenMax: An Efficient Algorithm for Mining Maximal Frequent Itemsets.” Data Mining and Knowledge Discovery 11, no. 3 (November 1, 2005): 223–42. https://doi.org/10.1007/s10618-005-0002-x.
 """
 function genmax(txns::Transactions, min_support::Union{Int,Float64})::DataFrame
-    
+    n_transactions = txns.n_transactions
+
     # Handle min_support as a float value
-    min_support = min_support isa Float64 ? ceil(Int, min_support * txns.n_transactions) : min_support
+    min_support = clean_support(min_support, n_transactions)
 
     # Get pruned matrix and sorted items
     matrix, sorted_items = RuleMiner.prune_matrix(txns.matrix, min_support)
