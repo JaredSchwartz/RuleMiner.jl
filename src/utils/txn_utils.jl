@@ -208,7 +208,7 @@ end
 
 
 """
-    txns_to_df(txns::Txns, id_col::Bool = false)::DataFrame
+    DataFrame(txns::Txns)::DataFrame
 
 Convert a Txns object into a DataFrame.
 
@@ -228,15 +228,15 @@ in a transaction, and 0 indicates its absence.
 
 # Features
 - Preserves the original item names as column names.
-- Optionally includes an 'Index' column with the original transaction identifiers.
+- Includes an 'Index' column with the original transaction identifiers if they exist.
 
 # Example
 ```julia
 # Assuming 'txns' is a pre-existing Txns object
-df = txns_to_df(txns, id_col=true)
+df = DataFrame(txns)
 ```
 """
-function txns_to_df(txns::Txns)::DataFrame
+function DataFrames.DataFrame(txns::Txns)::DataFrame
     df = DataFrame(Int.(Matrix(txns.matrix)), txns.colkeys)
     if !isempty(txns.linekeys)
         insertcols!(df, 1, :Index => txns.linekeys)
@@ -244,20 +244,22 @@ function txns_to_df(txns::Txns)::DataFrame
     return df
 end
 
-
 """
-    txns_to_df(txns::SeqTxns, id_col::Bool = false)::DataFrame
+    DataFrame(txns::SeqTxns; sequence_index::Bool = true)::DataFrame
 
 Convert a `SeqTxns` object into a DataFrame, including sequence information.
 
 # Arguments
 - `txns::SeqTxns`: The `SeqTxns` object to be converted.
-- `id_col::Bool = false`: If true, includes an 'Index' column with transaction identifiers.
+
+# Keyword Arguments
+- `sequence_index::Bool = true`: If true, includes a 'SequenceIndex' column indicating 
+  which sequence each transaction belongs to.
 
 # Returns
 - `DataFrame`: A DataFrame representation of the transactions with the following columns:
   - Item columns: One column for each item, with 1 indicating presence and 0 indicating absence.
-  - 'SequenceIndex': A column indicating which sequence each transaction belongs to.
+  - 'SequenceIndex': A column indicating which sequence each transaction belongs to (if sequence_index=true).
 
 # Description
 This function converts a `SeqTxns` object, which uses a sparse matrix representation with sequence 
@@ -273,15 +275,15 @@ transaction belongs to. Sequences are numbered starting from 1.
 # Example
 ```julia
 # Assuming 'txns_seq' is a pre-existing SeqTxns object
-df = txns_to_df(txns_seq, id_col=true)
-
+df = DataFrame(txns_seq)                    # With sequence index
+df_no_seq = DataFrame(txns_seq, sequence_index=false)  # Without sequence index
 ```
 """
-function txns_to_df(txns::SeqTxns, index::Bool = true)::DataFrame
+function DataFrames.DataFrame(txns::SeqTxns; sequence_index::Bool = true)::DataFrame
     # Convert matrix to DataFrame
     df = DataFrame(Int.(Matrix(txns.matrix)), txns.colkeys)
     
-    if index
+    if sequence_index
         # Add SequenceIndex column
         sequence_indices = Vector{Int}(undef, size(txns.matrix, 1))
         for (seq_idx, start_idx) in enumerate(txns.index)
@@ -292,6 +294,36 @@ function txns_to_df(txns::SeqTxns, index::Bool = true)::DataFrame
     end
     
     return df
+end
+
+"""
+    txns_to_df(txns::Txns)::DataFrame
+
+Convert a Txns object into a DataFrame. 
+
+!!! warning "Deprecated"
+    `txns_to_df(txns)` is deprecated. Use `DataFrame(txns)` instead.
+"""
+function txns_to_df(txns::Txns)
+    Base.depwarn("`txns_to_df(txns)` is deprecated, use `DataFrame(txns)` instead.", :txns_to_df)
+    return DataFrame(txns)
+end
+
+"""
+    txns_to_df(txns::SeqTxns, sequence_index::Bool = true)::DataFrame
+
+Convert a SeqTxns object into a DataFrame.
+
+!!! warning "Deprecated"
+    `txns_to_df(txns, sequence_index)` is deprecated. Use `DataFrame(txns, sequence_index=sequence_index)` instead.
+"""
+function txns_to_df(txns::SeqTxns, sequence_index::Bool = true)
+    if sequence_index
+        Base.depwarn("`txns_to_df(txns, true)` is deprecated, use `DataFrame(txns)` instead.", :txns_to_df)
+    else
+        Base.depwarn("`txns_to_df(txns, false)` is deprecated, use `DataFrame(txns, sequence_index=false)` instead.", :txns_to_df)
+    end
+    return DataFrame(txns, sequence_index=sequence_index)
 end
 
 """
