@@ -56,6 +56,11 @@ recover_maximal(df::DataFrame)
     Txns
 ```
 
+### Conversion of Transactions to DataFrame
+```@docs
+    DataFrames.DataFrame(txns::Txns)
+```
+
 ### FP Mining Objects
 
 ```@docs
@@ -63,9 +68,4 @@ recover_maximal(df::DataFrame)
 ```
 ```@docs
     FPNode
-```
-
-## Utility Functions
-```@docs
-txns_to_df(txns::Txns)
 ```
