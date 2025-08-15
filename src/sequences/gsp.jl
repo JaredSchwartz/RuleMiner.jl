@@ -30,6 +30,7 @@ function gsp(seqtxns::SeqTxns, min_support::Union{Int,Float64})::DataFrame
     n_sequences = seqtxns.n_sequences
     n_items = size(seqtxns.matrix, 2)
     min_support = clean_support(min_support, n_sequences)
+    idx_e = getends(seqtxns)
     
     # Create item index mapping for faster lookups
     item_to_idx = Dict(item => idx for (idx, item) in enumerate(seqtxns.colkeys))
@@ -42,7 +43,7 @@ function gsp(seqtxns::SeqTxns, min_support::Union{Int,Float64})::DataFrame
     end
     
     # Find frequent 1-patterns using matrix operations
-    current_patterns, all_patterns = find_L1_patterns_matrix(seqtxns, min_support)
+    current_patterns, all_patterns = find_L1_patterns_matrix(seqtxns, min_support, idx_e)
     
     k = 2
     while !isempty(current_patterns)
@@ -51,7 +52,7 @@ function gsp(seqtxns::SeqTxns, min_support::Union{Int,Float64})::DataFrame
         isempty(candidates) && break
         
         # Use work-stealing pattern with channels for lock-free processing
-        level_patterns = process_candidates_lockfree(candidates, seqtxns, min_support, buffer_channel, num_workers)
+        level_patterns = process_candidates_lockfree(candidates, seqtxns, min_support, buffer_channel, num_workers, idx_e)
         append!(all_patterns, level_patterns)
         
         # Set up for next level
@@ -73,45 +74,41 @@ function gsp(seqtxns::SeqTxns, min_support::Union{Int,Float64})::DataFrame
 end
 
 # Matrix-based L1 pattern finding
-function find_L1_patterns_matrix(seqtxns::SeqTxns, min_support::Int)
+function find_L1_patterns_matrix(seqtxns::SeqTxns, min_support::Int, idx_e::Vector{UInt32})
     n_items = size(seqtxns.matrix, 2)
     item_counts = zeros(Int, n_items)
+    item_cache = zeros(Int, n_items)
     
-    # Pre-allocate reusable BitVector for has_item checks
-    has_item_cache = falses(n_items)
-    
-    # Count items per sequence using matrix operations
+    # Count items per sequence
     for seq_idx in 1:seqtxns.n_sequences
         start_idx = seqtxns.index[seq_idx]
-        end_idx = seq_idx < seqtxns.n_sequences ? seqtxns.index[seq_idx + 1] - 1 : seqtxns.n_transactions
+        end_idx = idx_e[seq_idx]
         
-        # Reset the cache (faster than allocating new)
-        fill!(has_item_cache, false)
-        
-        # Use matrix operations to find items present in this sequence
         seq_matrix = view(seqtxns.matrix, start_idx:end_idx, :)
-        
-        # Efficiently populate the cache using any() with pre-allocated output
+
+        fill!(item_cache, 0)
         for col_idx in 1:n_items
             if any(view(seq_matrix, :, col_idx))
-                has_item_cache[col_idx] = true
+                item_cache[col_idx] = 1
             end
         end
         
-        # Add to counts using the cached BitVector
-        item_counts .+= has_item_cache
+        item_counts .+= item_cache
     end
     
     # Create frequent 1-patterns
     patterns_1 = Vector{Vector{Vector{Int}}}()
     all_patterns = Vector{SeqPattern}()
     
-    for (item_idx, count) in enumerate(item_counts)
-        if count >= min_support
-            pattern = [[item_idx]]
-            push!(patterns_1, pattern)
-            push!(all_patterns, SeqPattern(pattern, count))
-        end
+    count::Int = 0
+    for item_idx in eachindex(item_counts)
+        count = item_counts[item_idx]
+        
+        count < min_support && continue
+        
+        pattern = [[item_idx]]
+        push!(patterns_1, pattern)
+        push!(all_patterns, SeqPattern(pattern, count))
     end
     
     return patterns_1, all_patterns
@@ -123,7 +120,8 @@ function process_candidates_lockfree(
     seqtxns::SeqTxns, 
     min_support::Int, 
     buffer_channel::Channel{SequenceBuffer},
-    num_workers::Int
+    num_workers::Int,
+    idx_e::Vector{UInt32}
 )
     n_candidates = length(candidates)
     
@@ -156,7 +154,7 @@ function process_candidates_lockfree(
                     
                     for candidate_idx in chunk_start:chunk_end
                         candidate = candidates[candidate_idx]
-                        support_count = count_support_matrix_early_termination(candidate, seqtxns, min_support, buf)
+                        support_count = count_support_matrix_early_termination(candidate, seqtxns, min_support, buf, idx_e)
                         
                         if support_count >= min_support
                             push!(chunk_patterns, SeqPattern(candidate, support_count))
@@ -184,15 +182,15 @@ function count_support_matrix_early_termination(
     candidate::Vector{Vector{Int}}, 
     seqtxns::SeqTxns, 
     min_support::Int,
-    buf::SequenceBuffer
+    buf::SequenceBuffer,
+    idx_e::Vector{UInt32}
 )
     support_count = 0
     max_possible_support = seqtxns.n_sequences
-    
     # Process each sequence with early termination checks
     for seq_idx in 1:seqtxns.n_sequences
         start_idx = seqtxns.index[seq_idx]
-        end_idx = seq_idx < seqtxns.n_sequences ? seqtxns.index[seq_idx + 1] - 1 : seqtxns.n_transactions
+        end_idx = idx_e[seq_idx]
         
         if sequence_contains_pattern_matrix_early_termination(candidate, seqtxns.matrix, start_idx:end_idx, buf)
             support_count += 1
@@ -217,16 +215,14 @@ end
 function sequence_contains_pattern_matrix_early_termination(
     pattern::Vector{Vector{Int}}, 
     matrix::SparseMatrixCSC, 
-    seq_range::UnitRange{Int}, 
+    seq_range::UnitRange{UInt32}, 
     buf::SequenceBuffer
 )
     pattern_idx = 1
     seq_length = length(seq_range)
     
     # Early termination: if sequence is shorter than pattern, impossible to match
-    if seq_length < length(pattern)
-        return false
-    end
+    seq_length < length(pattern) && (return false)
     
     # Iterate through transactions in the sequence
     for (pos, txn_idx) in enumerate(seq_range)
@@ -235,9 +231,7 @@ function sequence_contains_pattern_matrix_early_termination(
         # Early termination: if remaining transactions can't cover remaining pattern
         remaining_txns = seq_length - pos + 1
         remaining_pattern = length(pattern) - pattern_idx + 1
-        if remaining_txns < remaining_pattern
-            return false
-        end
+        remaining_txns < remaining_pattern && (return false)
         
         # Check if current transaction contains the required itemset using matrix operations
         pattern_itemset = pattern[pattern_idx]
@@ -263,8 +257,8 @@ end
 function generate_k_candidates_indexed(frequent_patterns::Vector{Vector{Vector{Int}}}, k::Int)
     candidates = Set{Vector{Vector{Int}}}()
     
-    for i in 1:length(frequent_patterns)
-        for j in 1:length(frequent_patterns)
+    for i in eachindex(frequent_patterns)
+        for j in eachindex(frequent_patterns)
             i == j && continue
             
             pattern1, pattern2 = frequent_patterns[i], frequent_patterns[j]
