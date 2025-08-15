@@ -4,18 +4,18 @@ Licensed under the MIT license. See https://github.com/JaredSchwartz/RuleMiner.j
 =#
 
 struct SeqPattern
-    pattern::Vector{Vector{String}}  # Vector of itemsets representing the sequential pattern
+    pattern::Vector{Vector{Int}}     # Use item indices instead of strings for faster operations
     support::Int                     # Absolute support count
 end
 
 struct SequenceBuffer
-    itemsets::Vector{Vector{String}}    # Buffer for sequence itemsets
-    pattern_items::Vector{String}       # Buffer for pattern items
-    patterns::Vector{SeqPattern}        # Thread-local pattern results
+    temp_mask::BitVector            # Reusable mask for itemset matching
+    pattern_mask::BitVector         # Reusable mask for pattern matching
+    patterns::Vector{SeqPattern}    # Thread-local pattern results
     
-    SequenceBuffer() = new(
-        Vector{Vector{String}}(),
-        Vector{String}(),
+    SequenceBuffer(n_items::Int) = new(
+        falses(n_items),
+        falses(n_items), 
         Vector{SeqPattern}()
     )
 end
@@ -23,117 +23,35 @@ end
 """
     gsp(seqtxns::SeqTxns, min_support::Union{Int,Float64})::DataFrame
 
-Identify frequent sequential patterns in sequential transaction data using the GSP algorithm.
-
-# Arguments
-- `seqtxns::SeqTxns`: A `SeqTxns` object containing the sequential transaction dataset to mine.
-- `min_support::Union{Int,Float64}`: The minimum support threshold. If an `Int`, it represents 
-  the absolute support (number of sequences). If a `Float64`, it represents relative support.
-
-# Returns
-- `DataFrame`: A DataFrame containing the frequent sequential patterns, with columns:
-  - `Pattern`: The sequential pattern as a vector of itemsets.
-  - `Support`: The relative support of the pattern as a proportion of total sequences.
-  - `N`: The absolute support count of the pattern (number of sequences containing it).
-  - `Length`: The total number of items across all itemsets in the pattern.
-  - `NumItemsets`: The number of itemsets in the pattern.
-
-# Description
-The GSP (Generalized Sequential Pattern) algorithm discovers frequent sequential patterns
-in sequence databases. A sequential pattern is a sequence of itemsets that appears in
-a sufficient number of data sequences with the same order.
-
-The algorithm operates in multiple phases:
-
-1. **Candidate Generation**: Generate candidate sequential patterns of length k from 
-   frequent patterns of length k-1 using join and prune operations.
-
-2. **Support Counting**: Count the support of each candidate pattern by scanning 
-   the sequence database to find sequences that contain the pattern.
-
-3. **Pruning**: Remove infrequent candidate patterns that don't meet the minimum 
-   support threshold.
-
-4. **Iteration**: Repeat until no more frequent patterns can be found.
-
-Key features:
-- Supports itemsets within sequence elements (generalized sequences)
-- Uses efficient candidate generation with join and prune steps
-- Employs parallel processing for support counting
-- Handles complex sequential pattern matching
-
-# Pattern Representation
-Sequential patterns are represented as vectors of itemsets, where each itemset
-is a vector of item names. For example:
-- `[["A"], ["B", "C"]]` represents the pattern: A followed by (B and C together)
-- `[["A", "B"], ["C"]]` represents the pattern: (A and B together) followed by C
-
-# Example
-```julia
-# Load sequential transaction data
-seqtxns = SeqTxns("sequential_data.txt", ',', ';')
-
-# Find frequent sequential patterns with 10% minimum support
-patterns = gsp(seqtxns, 0.1)
-
-# Find patterns with absolute support of at least 5 sequences
-patterns = gsp(seqtxns, 5)
-
-# Display results
-println("Found ", nrow(patterns), " frequent sequential patterns")
-for row in eachrow(patterns)
-    println("Pattern: ", row.Pattern, " Support: ", row.Support)
-end
-```
-
-# References
-Srikant, Ramakrishnan, and Rakesh Agrawal. "Mining Sequential Patterns: Generalizations and Performance Improvements." 
-In Advances in Database Technology — EDBT '96, edited by Peter M. G. Apers, Mokrane Bouzeghoub, and Georges Gardarin, 
-1–17. Berlin, Heidelberg: Springer, 1996. https://doi.org/10.1007/BFb0014140.
+Matrix-optimized GSP algorithm for frequent sequential pattern mining.
 """
 function gsp(seqtxns::SeqTxns, min_support::Union{Int,Float64})::DataFrame
     # Initial setup
     n_sequences = seqtxns.n_sequences
+    n_items = size(seqtxns.matrix, 2)
     min_support = clean_support(min_support, n_sequences)
     
-    # Set up processing channels
-    num_buffers = nthreads(:default)
-    buffer_channel = Channel{SequenceBuffer}(num_buffers)
-    for _ in 1:num_buffers
-        put!(buffer_channel, SequenceBuffer())
+    # Create item index mapping for faster lookups
+    item_to_idx = Dict(item => idx for (idx, item) in enumerate(seqtxns.colkeys))
+    
+    # Set up processing channels for lock-free operation
+    num_workers = nthreads(:default)
+    buffer_channel = Channel{SequenceBuffer}(num_workers)
+    for _ in 1:num_workers
+        put!(buffer_channel, SequenceBuffer(n_items))
     end
     
-    # Find frequent 1-patterns (single items)
-    current_patterns, all_patterns = find_L1_patterns(seqtxns, min_support)
+    # Find frequent 1-patterns using matrix operations
+    current_patterns, all_patterns = find_L1_patterns_matrix(seqtxns, min_support)
     
     k = 2
     while !isempty(current_patterns)
         # Generate candidate k-patterns
-        candidates = generate_k_candidates(current_patterns, k)
+        candidates = generate_k_candidates_indexed(current_patterns, k)
         isempty(candidates) && break
         
-        # Results collection channel
-        patterns_channel = Channel{Vector{SeqPattern}}(Inf)
-        
-        # Process candidates in parallel
-        @sync begin
-            for candidate in candidates
-                @spawn begin
-                    buf = take!(buffer_channel)
-                    count_pattern_support(candidate, seqtxns, min_support, buf)
-                    
-                    if !isempty(buf.patterns)
-                        put!(patterns_channel, copy(buf.patterns))
-                        empty!(buf.patterns)
-                    end
-                    
-                    put!(buffer_channel, buf)
-                end
-            end
-        end
-        
-        close(patterns_channel)
-        level_patterns = vcat(patterns_channel...)
+        # Use work-stealing pattern with channels for lock-free processing
+        level_patterns = process_candidates_lockfree(candidates, seqtxns, min_support, buffer_channel, num_workers)
         append!(all_patterns, level_patterns)
         
         # Set up for next level
@@ -141,9 +59,9 @@ function gsp(seqtxns::SeqTxns, min_support::Union{Int,Float64})::DataFrame
         k += 1
     end
     
-    # Create output DataFrame
+    # Convert back to string representation for output
     df = DataFrame(
-        Pattern = [p.pattern for p in all_patterns],
+        Pattern = [[seqtxns.colkeys[itemset] for itemset in p.pattern] for p in all_patterns],
         Support = [p.support / n_sequences for p in all_patterns],
         N = [p.support for p in all_patterns],
         Length = [sum(length(itemset) for itemset in p.pattern) for p in all_patterns],
@@ -154,33 +72,43 @@ function gsp(seqtxns::SeqTxns, min_support::Union{Int,Float64})::DataFrame
     return df
 end
 
-# Helper function to find frequent 1-patterns
-function find_L1_patterns(seqtxns::SeqTxns, min_support::Int)
-    item_counts = Dict{String, Int}()
+# Matrix-based L1 pattern finding
+function find_L1_patterns_matrix(seqtxns::SeqTxns, min_support::Int)
+    n_items = size(seqtxns.matrix, 2)
+    item_counts = zeros(Int, n_items)
     
-    # Count item occurrences across sequences
+    # Pre-allocate reusable BitVector for has_item checks
+    has_item_cache = falses(n_items)
+    
+    # Count items per sequence using matrix operations
     for seq_idx in 1:seqtxns.n_sequences
         start_idx = seqtxns.index[seq_idx]
         end_idx = seq_idx < seqtxns.n_sequences ? seqtxns.index[seq_idx + 1] - 1 : seqtxns.n_transactions
         
-        sequence_items = Set{String}()
-        for txn_idx in start_idx:end_idx
-            items = seqtxns.colkeys[findall(seqtxns.matrix[txn_idx, :])]
-            union!(sequence_items, items)
+        # Reset the cache (faster than allocating new)
+        fill!(has_item_cache, false)
+        
+        # Use matrix operations to find items present in this sequence
+        seq_matrix = view(seqtxns.matrix, start_idx:end_idx, :)
+        
+        # Efficiently populate the cache using any() with pre-allocated output
+        for col_idx in 1:n_items
+            if any(view(seq_matrix, :, col_idx))
+                has_item_cache[col_idx] = true
+            end
         end
         
-        for item in sequence_items
-            item_counts[item] = get(item_counts, item, 0) + 1
-        end
+        # Add to counts using the cached BitVector
+        item_counts .+= has_item_cache
     end
     
     # Create frequent 1-patterns
-    patterns_1 = Vector{Vector{Vector{String}}}()
+    patterns_1 = Vector{Vector{Vector{Int}}}()
     all_patterns = Vector{SeqPattern}()
     
-    for (item, count) in item_counts
+    for (item_idx, count) in enumerate(item_counts)
         if count >= min_support
-            pattern = [[item]]
+            pattern = [[item_idx]]
             push!(patterns_1, pattern)
             push!(all_patterns, SeqPattern(pattern, count))
         end
@@ -189,9 +117,151 @@ function find_L1_patterns(seqtxns::SeqTxns, min_support::Int)
     return patterns_1, all_patterns
 end
 
-# Helper function to generate candidate k-patterns
-function generate_k_candidates(frequent_patterns::Vector{Vector{Vector{String}}}, k::Int)
-    candidates = Set{Vector{Vector{String}}}()
+# Chunked parallel processing with early termination optimizations
+function process_candidates_lockfree(
+    candidates::Vector{Vector{Vector{Int}}}, 
+    seqtxns::SeqTxns, 
+    min_support::Int, 
+    buffer_channel::Channel{SequenceBuffer},
+    num_workers::Int
+)
+    n_candidates = length(candidates)
+    
+    # Calculate optimal chunk size (similar to apriori)
+    min_chunk_size = 10
+    chunk_size = max(min_chunk_size, cld(n_candidates, num_workers * 4))
+    total_chunks = cld(n_candidates, chunk_size)
+    chunk_counter = Atomic{Int}(0)
+    
+    # Results channel for collecting pattern chunks from workers
+    results_channel = Channel{Vector{SeqPattern}}(total_chunks)
+    
+    # Launch workers with chunked processing
+    @sync begin
+        for _ in 1:num_workers
+            @spawn begin
+                buf = take!(buffer_channel)
+                
+                while true
+                    # Atomic work-stealing: grab next chunk
+                    chunk_idx = atomic_add!(chunk_counter, 1)
+                    chunk_idx >= total_chunks && break
+                    
+                    # Calculate chunk bounds
+                    chunk_start = chunk_idx * chunk_size + 1
+                    chunk_end = min(chunk_start + chunk_size - 1, n_candidates)
+                    
+                    # Process this chunk of candidates
+                    chunk_patterns = Vector{SeqPattern}()
+                    
+                    for candidate_idx in chunk_start:chunk_end
+                        candidate = candidates[candidate_idx]
+                        support_count = count_support_matrix_early_termination(candidate, seqtxns, min_support, buf)
+                        
+                        if support_count >= min_support
+                            push!(chunk_patterns, SeqPattern(candidate, support_count))
+                        end
+                    end
+                    
+                    # Send chunk results to channel (only if non-empty)
+                    if !isempty(chunk_patterns)
+                        put!(results_channel, chunk_patterns)
+                    end
+                end
+                
+                put!(buffer_channel, buf)
+            end
+        end
+    end
+    
+    # Close results channel and combine all chunks
+    close(results_channel)
+    return vcat(results_channel...)
+end
+
+# Support counting with early termination when support threshold is reached
+function count_support_matrix_early_termination(
+    candidate::Vector{Vector{Int}}, 
+    seqtxns::SeqTxns, 
+    min_support::Int,
+    buf::SequenceBuffer
+)
+    support_count = 0
+    max_possible_support = seqtxns.n_sequences
+    
+    # Process each sequence with early termination checks
+    for seq_idx in 1:seqtxns.n_sequences
+        start_idx = seqtxns.index[seq_idx]
+        end_idx = seq_idx < seqtxns.n_sequences ? seqtxns.index[seq_idx + 1] - 1 : seqtxns.n_transactions
+        
+        if sequence_contains_pattern_matrix_early_termination(candidate, seqtxns.matrix, start_idx:end_idx, buf)
+            support_count += 1
+            
+            # Early termination: if we've already found enough support, we can stop
+            if support_count >= min_support
+                return support_count
+            end
+        end
+        
+        # Early termination: if remaining sequences can't possibly reach min_support
+        remaining_sequences = seqtxns.n_sequences - seq_idx
+        if support_count + remaining_sequences < min_support
+            return support_count
+        end
+    end
+    
+    return support_count
+end
+
+# Pattern matching with early termination for impossible matches
+function sequence_contains_pattern_matrix_early_termination(
+    pattern::Vector{Vector{Int}}, 
+    matrix::SparseMatrixCSC, 
+    seq_range::UnitRange{Int}, 
+    buf::SequenceBuffer
+)
+    pattern_idx = 1
+    seq_length = length(seq_range)
+    
+    # Early termination: if sequence is shorter than pattern, impossible to match
+    if seq_length < length(pattern)
+        return false
+    end
+    
+    # Iterate through transactions in the sequence
+    for (pos, txn_idx) in enumerate(seq_range)
+        pattern_idx > length(pattern) && break
+        
+        # Early termination: if remaining transactions can't cover remaining pattern
+        remaining_txns = seq_length - pos + 1
+        remaining_pattern = length(pattern) - pattern_idx + 1
+        if remaining_txns < remaining_pattern
+            return false
+        end
+        
+        # Check if current transaction contains the required itemset using matrix operations
+        pattern_itemset = pattern[pattern_idx]
+        
+        # Fast check: does this transaction contain all items in the current pattern itemset?
+        contains_all = true
+        @inbounds for item_idx in pattern_itemset
+            if !matrix[txn_idx, item_idx]
+                contains_all = false
+                break
+            end
+        end
+        
+        if contains_all
+            pattern_idx += 1
+        end
+    end
+    
+    return pattern_idx > length(pattern)
+end
+
+# Generate candidates using indexed representation
+function generate_k_candidates_indexed(frequent_patterns::Vector{Vector{Vector{Int}}}, k::Int)
+    candidates = Set{Vector{Vector{Int}}}()
     
     for i in 1:length(frequent_patterns)
         for j in 1:length(frequent_patterns)
@@ -230,7 +300,7 @@ function generate_k_candidates(frequent_patterns::Vector{Vector{Vector{String}}}
                 end
                 
                 # Add valid candidate and check if all subsequences are frequent
-                if !isnothing(candidate) && has_frequent_subsequences(candidate, frequent_patterns)
+                if !isnothing(candidate) && has_frequent_subsequences_indexed(candidate, frequent_patterns)
                     push!(candidates, candidate)
                 end
             end
@@ -240,8 +310,8 @@ function generate_k_candidates(frequent_patterns::Vector{Vector{Vector{String}}}
     return collect(candidates)
 end
 
-# Helper function to check if all subsequences of a candidate are frequent
-function has_frequent_subsequences(candidate::Vector{Vector{String}}, frequent_patterns::Vector{Vector{Vector{String}}})
+# Indexed version of subsequence frequency checking
+function has_frequent_subsequences_indexed(candidate::Vector{Vector{Int}}, frequent_patterns::Vector{Vector{Vector{Int}}})
     frequent_set = Set(frequent_patterns)
     
     # Check removal of each itemset
@@ -266,61 +336,4 @@ function has_frequent_subsequences(candidate::Vector{Vector{String}}, frequent_p
     end
     
     return true
-end
-
-# Helper function to count support for a candidate pattern
-function count_pattern_support(candidate::Vector{Vector{String}}, seqtxns::SeqTxns, min_support::Int, buf::SequenceBuffer)
-    empty!(buf.patterns)
-    support_count = 0
-    
-    for seq_idx in 1:seqtxns.n_sequences
-        if sequence_contains_pattern(candidate, seqtxns, seq_idx, buf)
-            support_count += 1
-        end
-    end
-    
-    if support_count >= min_support
-        push!(buf.patterns, SeqPattern(candidate, support_count))
-    end
-end
-
-# Helper function to check if a sequence contains a pattern
-function sequence_contains_pattern(pattern::Vector{Vector{String}}, seqtxns::SeqTxns, seq_idx::Int, buf::SequenceBuffer)
-    start_idx = seqtxns.index[seq_idx]
-    end_idx = seq_idx < seqtxns.n_sequences ? seqtxns.index[seq_idx + 1] - 1 : seqtxns.n_transactions
-    
-    # Build sequence itemsets
-    empty!(buf.itemsets)
-    for txn_idx in start_idx:end_idx
-        empty!(buf.pattern_items)
-        for (item_idx, has_item) in enumerate(seqtxns.matrix[txn_idx, :])
-            has_item && push!(buf.pattern_items, seqtxns.colkeys[item_idx])
-        end
-        if !isempty(buf.pattern_items)
-            push!(buf.itemsets, sort(copy(buf.pattern_items)))
-        end
-    end
-    
-    # Check if pattern is subsequence of sequence
-    return is_subsequence(pattern, buf.itemsets)
-end
-
-# Helper function to check subsequence matching
-function is_subsequence(pattern::Vector{Vector{String}}, sequence::Vector{Vector{String}})
-    length(pattern) > length(sequence) && return false
-    isempty(pattern) && return true
-    
-    pat_idx, seq_idx = 1, 1
-    
-    while pat_idx <= length(pattern) && seq_idx <= length(sequence)
-        pattern_itemset = Set(pattern[pat_idx])
-        sequence_itemset = Set(sequence[seq_idx])
-        
-        if issubset(pattern_itemset, sequence_itemset)
-            pat_idx += 1
-        end
-        seq_idx += 1
-    end
-    
-    return pat_idx > length(pattern)
 end
