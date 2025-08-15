@@ -71,4 +71,9 @@ include("itemsets/maximal/genmax.jl")
 export fpmax
 export genmax
 
+#================Sequence Mining=================#
+include("sequences/gsp.jl")
+
+export gsp
+
 end
