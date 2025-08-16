@@ -32,9 +32,6 @@ function gsp(seqtxns::SeqTxns, min_support::Union{Int,Float64})::DataFrame
     min_support = clean_support(min_support, n_sequences)
     idx_e = getends(seqtxns)
     
-    # Create item index mapping for faster lookups
-    item_to_idx = Dict(item => idx for (idx, item) in enumerate(seqtxns.colkeys))
-    
     # Set up processing channels for lock-free operation
     num_workers = nthreads(:default)
     buffer_channel = Channel{SequenceBuffer}(num_workers)
@@ -43,16 +40,16 @@ function gsp(seqtxns::SeqTxns, min_support::Union{Int,Float64})::DataFrame
     end
     
     # Find frequent 1-patterns using matrix operations
-    current_patterns, all_patterns = find_L1_patterns_matrix(seqtxns, min_support, idx_e)
+    current_patterns, all_patterns = generate_l1_patterns(seqtxns, min_support, idx_e)
     
     k = 2
     while !isempty(current_patterns)
         # Generate candidate k-patterns
-        candidates = generate_k_candidates_indexed(current_patterns, k)
+        candidates = generate_k_candidates(current_patterns, k)
         isempty(candidates) && break
         
         # Use work-stealing pattern with channels for lock-free processing
-        level_patterns = process_candidates_lockfree(candidates, seqtxns, min_support, buffer_channel, num_workers, idx_e)
+        level_patterns = process_candidates(candidates, seqtxns, min_support, buffer_channel, num_workers, idx_e)
         append!(all_patterns, level_patterns)
         
         # Set up for next level
@@ -74,7 +71,7 @@ function gsp(seqtxns::SeqTxns, min_support::Union{Int,Float64})::DataFrame
 end
 
 # Matrix-based L1 pattern finding
-function find_L1_patterns_matrix(seqtxns::SeqTxns, min_support::Int, idx_e::Vector{UInt32})
+function generate_l1_patterns(seqtxns::SeqTxns, min_support::Int, idx_e::Vector{UInt32})
     n_items = size(seqtxns.matrix, 2)
     item_counts = zeros(Int, n_items)
     item_cache = zeros(Int, n_items)
@@ -115,7 +112,7 @@ function find_L1_patterns_matrix(seqtxns::SeqTxns, min_support::Int, idx_e::Vect
 end
 
 # Chunked parallel processing with early termination optimizations
-function process_candidates_lockfree(
+function process_candidates(
     candidates::Vector{Vector{Vector{Int}}}, 
     seqtxns::SeqTxns, 
     min_support::Int, 
@@ -128,7 +125,7 @@ function process_candidates_lockfree(
     # Calculate optimal chunk size (similar to apriori)
     min_chunk_size = 10
     chunk_size = max(min_chunk_size, cld(n_candidates, num_workers * 4))
-    total_chunks = cld(n_candidates, chunk_size)
+    total_chunks = cld(n_candidates, chunk_size) + 1
     chunk_counter = Atomic{Int}(0)
     
     # Results channel for collecting pattern chunks from workers
@@ -154,7 +151,7 @@ function process_candidates_lockfree(
                     
                     for candidate_idx in chunk_start:chunk_end
                         candidate = candidates[candidate_idx]
-                        support_count = count_support_matrix_early_termination(candidate, seqtxns, min_support, buf, idx_e)
+                        support_count = count_support(candidate, seqtxns, min_support, buf, idx_e)
                         
                         if support_count >= min_support
                             push!(chunk_patterns, SeqPattern(candidate, support_count))
@@ -178,7 +175,7 @@ function process_candidates_lockfree(
 end
 
 # Support counting with early termination when support threshold is reached
-function count_support_matrix_early_termination(
+function count_support(
     candidate::Vector{Vector{Int}}, 
     seqtxns::SeqTxns, 
     min_support::Int,
@@ -192,7 +189,7 @@ function count_support_matrix_early_termination(
         start_idx = seqtxns.index[seq_idx]
         end_idx = idx_e[seq_idx]
         
-        if sequence_contains_pattern_matrix_early_termination(candidate, seqtxns.matrix, start_idx:end_idx, buf)
+        if sequence_contains_pattern(candidate, seqtxns.matrix, start_idx:end_idx)
             support_count += 1
             
             # Early termination: if we've already found enough support, we can stop
@@ -212,11 +209,10 @@ function count_support_matrix_early_termination(
 end
 
 # Pattern matching with early termination for impossible matches
-function sequence_contains_pattern_matrix_early_termination(
+function sequence_contains_pattern(
     pattern::Vector{Vector{Int}}, 
     matrix::SparseMatrixCSC, 
     seq_range::UnitRange{UInt32}, 
-    buf::SequenceBuffer
 )
     pattern_idx = 1
     seq_length = length(seq_range)
@@ -254,7 +250,7 @@ function sequence_contains_pattern_matrix_early_termination(
 end
 
 # Generate candidates using indexed representation
-function generate_k_candidates_indexed(frequent_patterns::Vector{Vector{Vector{Int}}}, k::Int)
+function generate_k_candidates(frequent_patterns::Vector{Vector{Vector{Int}}}, k::Int)
     candidates = Set{Vector{Vector{Int}}}()
     
     for i in eachindex(frequent_patterns)
@@ -263,41 +259,31 @@ function generate_k_candidates_indexed(frequent_patterns::Vector{Vector{Vector{I
             
             pattern1, pattern2 = frequent_patterns[i], frequent_patterns[j]
             
+            # Handle k == 2: generate sequential and simultaneous patterns
             if k == 2
-                # Generate 2-candidates: sequential and simultaneous patterns
                 item1, item2 = pattern1[1][1], pattern2[1][1]
-                
-                # Sequential pattern
-                push!(candidates, [[item1], [item2]])
-                
-                # Simultaneous pattern (avoid duplicates)
-                if item1 < item2
-                    push!(candidates, [sort([item1, item2])])
-                end
-            else
-                # Generate k-candidates using join operation
-                candidate = nothing
-                
-                # Check if patterns can be joined
-                if length(pattern1) == length(pattern2)
-                    # Check prefix match for join
-                    if length(pattern1) > 1 && pattern1[1:end-1] == pattern2[1:end-1]
-                        last1, last2 = Set(pattern1[end]), Set(pattern2[end])
-                        if last1 != last2
-                            # Sequential join
-                            candidate = vcat(pattern1, [pattern2[end]])
-                        end
-                    elseif length(pattern1) == 1
-                        # Join single-itemset patterns
-                        candidate = [pattern1[1], pattern2[1]]
-                    end
-                end
-                
-                # Add valid candidate and check if all subsequences are frequent
-                if !isnothing(candidate) && has_frequent_subsequences_indexed(candidate, frequent_patterns)
-                    push!(candidates, candidate)
-                end
+                push!(candidates, [[item1], [item2]])  # Sequential
+                item1 < item2 && push!(candidates, [sort([item1, item2])])  # Simultaneous
+                continue
             end
+            
+            # Handle k > 2: extend existing patterns
+            # Patterns must have same length to be joinable
+            length(pattern1) != length(pattern2) && continue
+            
+            # Patterns must have length > 1 (multi-itemset sequences)
+            length(pattern1) <= 1 && continue
+            
+            # Prefix (all but last itemset) must match
+            pattern1[1:end-1] != pattern2[1:end-1] && continue
+            
+            # Last itemsets must be different
+            last1, last2 = Set(pattern1[end]), Set(pattern2[end])
+            last1 == last2 && continue
+            
+            # Generate candidate and validate
+            candidate = vcat(pattern1, [pattern2[end]])
+            subsequence_finder(candidate, frequent_patterns) && push!(candidates, candidate)
         end
     end
     
@@ -305,26 +291,26 @@ function generate_k_candidates_indexed(frequent_patterns::Vector{Vector{Vector{I
 end
 
 # Indexed version of subsequence frequency checking
-function has_frequent_subsequences_indexed(candidate::Vector{Vector{Int}}, frequent_patterns::Vector{Vector{Vector{Int}}})
+function subsequence_finder(candidate::Vector{Vector{Int}}, frequent_patterns::Vector{Vector{Vector{Int}}})
     frequent_set = Set(frequent_patterns)
     
     # Check removal of each itemset
     for i in 1:length(candidate)
-        if length(candidate) > 1
-            subseq = [candidate[j] for j in 1:length(candidate) if j != i]
-            subseq ∉ frequent_set && return false
-        end
+        length(candidate) <= 1 && continue
+
+        subseq = [candidate[j] for j in 1:length(candidate) if j != i]
+        subseq ∉ frequent_set && return false
     end
     
     # Check removal of items from multi-item itemsets
     for i in 1:length(candidate)
-        if length(candidate[i]) > 1
-            for item in candidate[i]
-                subseq = copy(candidate)
-                subseq[i] = filter(x -> x != item, candidate[i])
-                if !isempty(subseq[i]) && subseq ∉ frequent_set
-                    return false
-                end
+        length(candidate[i]) <= 1 && continue
+        
+        for item in candidate[i]
+            subseq = copy(candidate)
+            subseq[i] = filter(x -> x != item, candidate[i])
+            if !isempty(subseq[i]) && subseq ∉ frequent_set
+                return false
             end
         end
     end
