@@ -9,15 +9,9 @@ struct SeqPattern
 end
 
 struct SequenceBuffer
-    temp_mask::BitVector            # Reusable mask for itemset matching
-    pattern_mask::BitVector         # Reusable mask for pattern matching
     patterns::Vector{SeqPattern}    # Thread-local pattern results
     
-    SequenceBuffer(n_items::Int) = new(
-        falses(n_items),
-        falses(n_items), 
-        Vector{SeqPattern}()
-    )
+    SequenceBuffer() = new(Vector{SeqPattern}())
 end
 
 """
@@ -36,7 +30,7 @@ function gsp(seqtxns::SeqTxns, min_support::Union{Int,Float64})::DataFrame
     num_workers = nthreads(:default)
     buffer_channel = Channel{SequenceBuffer}(num_workers)
     for _ in 1:num_workers
-        put!(buffer_channel, SequenceBuffer(n_items))
+        put!(buffer_channel, SequenceBuffer())
     end
     
     # Find frequent 1-patterns using matrix operations
@@ -111,7 +105,7 @@ function generate_l1_patterns(seqtxns::SeqTxns, min_support::Int, idx_e::Vector{
     return patterns_1, all_patterns
 end
 
-# Chunked parallel processing with early termination optimizations
+# Chunked parallel processing
 function process_candidates(
     candidates::Vector{Vector{Vector{Int}}}, 
     seqtxns::SeqTxns, 
@@ -122,7 +116,7 @@ function process_candidates(
 )
     n_candidates = length(candidates)
     
-    # Calculate optimal chunk size (similar to apriori)
+    # Calculate optimal chunk size
     min_chunk_size = 10
     chunk_size = max(min_chunk_size, cld(n_candidates, num_workers * 4))
     total_chunks = cld(n_candidates, chunk_size) + 1
@@ -151,7 +145,7 @@ function process_candidates(
                     
                     for candidate_idx in chunk_start:chunk_end
                         candidate = candidates[candidate_idx]
-                        support_count = count_support(candidate, seqtxns, min_support, buf, idx_e)
+                        support_count = calc_support(candidate, seqtxns.matrix, seqtxns.index, idx_e)
                         
                         if support_count >= min_support
                             push!(chunk_patterns, SeqPattern(candidate, support_count))
@@ -174,79 +168,50 @@ function process_candidates(
     return vcat(results_channel...)
 end
 
-# Support counting with early termination when support threshold is reached
-function count_support(
-    candidate::Vector{Vector{Int}}, 
-    seqtxns::SeqTxns, 
-    min_support::Int,
-    buf::SequenceBuffer,
-    idx_e::Vector{UInt32}
-)
-    support_count = 0
-    max_possible_support = seqtxns.n_sequences
-    # Process each sequence with early termination checks
-    for seq_idx in 1:seqtxns.n_sequences
-        start_idx = seqtxns.index[seq_idx]
-        end_idx = idx_e[seq_idx]
+# Optimized support counting function
+function calc_support(sequence::Vector{Vector{Int}}, 
+                     matrix::SparseMatrixCSC{Bool}, starts::Vector{UInt32}, ends::Vector{UInt32})
+    counter = 0
+    len_seq = length(sequence)
+    
+    # For each potential starting position
+    for idx_val in eachindex(starts)
+        start_row = starts[idx_val]
+        end_row = ends[idx_val]
         
-        if sequence_contains_pattern(candidate, seqtxns.matrix, start_idx:end_idx)
-            support_count += 1
+        # Try to match the sequence starting from start_row
+        matrix_row = start_row  # Current position in matrix
+        seq_idx = 1             # Current position in sequence
+        
+        # Step through the matrix rows
+        while matrix_row <= end_row && seq_idx <= len_seq
             
-            # Early termination: if we've already found enough support, we can stop
-            if support_count >= min_support
-                return support_count
+            # Check if current matrix row contains all items from sequence transaction
+            match = true
+            @inbounds for item in sequence[seq_idx]
+                if !matrix[matrix_row, item]
+                    match = false
+                    break
+                end
+            end
+            
+            if match
+                # Match found - advance both pointers
+                seq_idx += 1
+                matrix_row += 1
+            else
+                # No match - advance only matrix pointer
+                matrix_row += 1
             end
         end
         
-        # Early termination: if remaining sequences can't possibly reach min_support
-        remaining_sequences = seqtxns.n_sequences - seq_idx
-        if support_count + remaining_sequences < min_support
-            return support_count
+        # Check if we successfully matched the entire sequence
+        if seq_idx > len_seq
+            counter += 1
         end
     end
     
-    return support_count
-end
-
-# Pattern matching with early termination for impossible matches
-function sequence_contains_pattern(
-    pattern::Vector{Vector{Int}}, 
-    matrix::SparseMatrixCSC, 
-    seq_range::UnitRange{UInt32}, 
-)
-    pattern_idx = 1
-    seq_length = length(seq_range)
-    
-    # Early termination: if sequence is shorter than pattern, impossible to match
-    seq_length < length(pattern) && (return false)
-    
-    # Iterate through transactions in the sequence
-    for (pos, txn_idx) in enumerate(seq_range)
-        pattern_idx > length(pattern) && break
-        
-        # Early termination: if remaining transactions can't cover remaining pattern
-        remaining_txns = seq_length - pos + 1
-        remaining_pattern = length(pattern) - pattern_idx + 1
-        remaining_txns < remaining_pattern && (return false)
-        
-        # Check if current transaction contains the required itemset using matrix operations
-        pattern_itemset = pattern[pattern_idx]
-        
-        # Fast check: does this transaction contain all items in the current pattern itemset?
-        contains_all = true
-        @inbounds for item_idx in pattern_itemset
-            if !matrix[txn_idx, item_idx]
-                contains_all = false
-                break
-            end
-        end
-        
-        if contains_all
-            pattern_idx += 1
-        end
-    end
-    
-    return pattern_idx > length(pattern)
+    return counter
 end
 
 # Generate candidates using indexed representation
