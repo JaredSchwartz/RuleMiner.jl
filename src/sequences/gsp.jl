@@ -4,14 +4,26 @@ Licensed under the MIT license. See https://github.com/JaredSchwartz/RuleMiner.j
 =#
 
 struct SeqPattern
-    pattern::Vector{Vector{Int}}     # Use item indices instead of strings for faster operations
-    support::Int                     # Absolute support count
+    pattern::Vector{Vector{Int}}
+    support::Int
+    signature::UInt64  # Hash signature for fast comparison
 end
 
 struct SequenceBuffer
-    patterns::Vector{SeqPattern}    # Thread-local pattern results
+    patterns::Vector{SeqPattern}
     
     SequenceBuffer() = new(Vector{SeqPattern}())
+end
+
+# Helper to create hash signature from pattern
+function pattern_hash(pattern::Vector{Vector{Int}})::UInt64
+    h = UInt64(0)
+    for (pos, itemset) in enumerate(pattern)
+        for item in itemset
+            h = hash(item, hash(pos, h))
+        end
+    end
+    return h
 end
 
 """
@@ -47,7 +59,7 @@ function gsp(seqtxns::SeqTxns, min_support::Union{Int,Float64})::DataFrame
         append!(all_patterns, level_patterns)
         
         # Set up for next level
-        current_patterns = [p.pattern for p in level_patterns]
+        current_patterns = level_patterns
         k += 1
     end
     
@@ -87,19 +99,20 @@ function generate_l1_patterns(seqtxns::SeqTxns, min_support::Int, idx_e::Vector{
         item_counts .+= item_cache
     end
     
-    # Create frequent 1-patterns
-    patterns_1 = Vector{Vector{Vector{Int}}}()
+    # Create frequent 1-patterns with signatures
+    patterns_1 = Vector{SeqPattern}()
     all_patterns = Vector{SeqPattern}()
     
-    count::Int = 0
     for item_idx in eachindex(item_counts)
         count = item_counts[item_idx]
-        
         count < min_support && continue
         
         pattern = [[item_idx]]
-        push!(patterns_1, pattern)
-        push!(all_patterns, SeqPattern(pattern, count))
+        sig = pattern_hash(pattern)
+        seq_pat = SeqPattern(pattern, count, sig)
+        
+        push!(patterns_1, seq_pat)
+        push!(all_patterns, seq_pat)
     end
     
     return patterns_1, all_patterns
@@ -119,7 +132,7 @@ function process_candidates(
     # Calculate optimal chunk size
     min_chunk_size = 10
     chunk_size = max(min_chunk_size, cld(n_candidates, num_workers * 4))
-    total_chunks = cld(n_candidates, chunk_size) + 1
+    total_chunks = cld(n_candidates, chunk_size)
     chunk_counter = Atomic{Int}(0)
     
     # Results channel for collecting pattern chunks from workers
@@ -148,7 +161,8 @@ function process_candidates(
                         support_count = calc_support(candidate, seqtxns.matrix, seqtxns.index, idx_e)
                         
                         if support_count >= min_support
-                            push!(chunk_patterns, SeqPattern(candidate, support_count))
+                            sig = pattern_hash(candidate)
+                            push!(chunk_patterns, SeqPattern(candidate, support_count, sig))
                         end
                     end
                     
@@ -215,14 +229,14 @@ function calc_support(sequence::Vector{Vector{Int}},
 end
 
 # Generate candidates using indexed representation
-function generate_k_candidates(frequent_patterns::Vector{Vector{Vector{Int}}}, k::Int)
+function generate_k_candidates(frequent_patterns::Vector{SeqPattern}, k::Int)
     candidates = Set{Vector{Vector{Int}}}()
     
     for i in eachindex(frequent_patterns)
         for j in eachindex(frequent_patterns)
             i == j && continue
             
-            pattern1, pattern2 = frequent_patterns[i], frequent_patterns[j]
+            pattern1, pattern2 = frequent_patterns[i].pattern, frequent_patterns[j].pattern
             
             # Handle k == 2: generate sequential and simultaneous patterns
             if k == 2
@@ -232,53 +246,30 @@ function generate_k_candidates(frequent_patterns::Vector{Vector{Vector{Int}}}, k
                 continue
             end
             
-            # Handle k > 2: extend existing patterns
-            # Patterns must have same length to be joinable
-            length(pattern1) != length(pattern2) && continue
+            # Handle k > 2: levelwise join like Apriori
+            # Two ways to extend: add new itemset or extend existing itemset
             
-            # Patterns must have length > 1 (multi-itemset sequences)
-            length(pattern1) <= 1 && continue
+            # Method 1: Extend last itemset (simultaneous items)
+            if length(pattern1) == length(pattern2) && pattern1[1:end-1] == pattern2[1:end-1]
+                last1, last2 = pattern1[end], pattern2[end]
+                if length(last1) == 1 && length(last2) == 1 && last1[1] < last2[1]
+                    # Merge single items into one itemset
+                    new_pattern = copy(pattern1)
+                    new_pattern[end] = sort([last1[1], last2[1]])
+                    push!(candidates, new_pattern)
+                end
+            end
             
-            # Prefix (all but last itemset) must match
-            pattern1[1:end-1] != pattern2[1:end-1] && continue
-            
-            # Last itemsets must be different
-            last1, last2 = Set(pattern1[end]), Set(pattern2[end])
-            last1 == last2 && continue
-            
-            # Generate candidate and validate
-            candidate = vcat(pattern1, [pattern2[end]])
-            subsequence_finder(candidate, frequent_patterns) && push!(candidates, candidate)
-        end
-    end
-    
-    return collect(candidates)
-end
-
-# Indexed version of subsequence frequency checking
-function subsequence_finder(candidate::Vector{Vector{Int}}, frequent_patterns::Vector{Vector{Vector{Int}}})
-    frequent_set = Set(frequent_patterns)
-    
-    # Check removal of each itemset
-    for i in 1:length(candidate)
-        length(candidate) <= 1 && continue
-
-        subseq = [candidate[j] for j in 1:length(candidate) if j != i]
-        subseq ∉ frequent_set && return false
-    end
-    
-    # Check removal of items from multi-item itemsets
-    for i in 1:length(candidate)
-        length(candidate[i]) <= 1 && continue
-        
-        for item in candidate[i]
-            subseq = copy(candidate)
-            subseq[i] = filter(x -> x != item, candidate[i])
-            if !isempty(subseq[i]) && subseq ∉ frequent_set
-                return false
+            # Method 2: Add new itemset (sequential extension)
+            if pattern1 == pattern2[1:end-1]
+                # pattern2 extends pattern1 with one more itemset
+                push!(candidates, copy(pattern2))
+            elseif pattern2 == pattern1[1:end-1] 
+                # pattern1 extends pattern2 with one more itemset
+                push!(candidates, copy(pattern1))
             end
         end
     end
     
-    return true
+    return collect(candidates)
 end
