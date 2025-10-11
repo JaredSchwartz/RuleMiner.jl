@@ -1,7 +1,7 @@
 name = "RuleMiner"
 uuid = "26420b10-3f9f-4b54-bd85-e6b3d5a44d3c"
 authors = ["Jared Schwartz"]
-version = "0.7.1"
+version = "0.8.0"
 
 [deps]
 Combinatorics = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"
@@ -11,9 +11,9 @@ PrettyTables = "08abe8d2-0d0c-5749-adfa-8a2ac140af0d"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
 [compat]
-Combinatorics = "1.0.2"
+Combinatorics = "1.0"
 DataFrames = "1.8"
-PrettyTables = "3"
+PrettyTables = "3.0"
 julia = "1.10"
 
 [extras]
