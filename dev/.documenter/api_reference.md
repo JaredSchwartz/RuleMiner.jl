@@ -75,7 +75,7 @@ result = apriori(txns, 5_000, 0.5)
 Agrawal, Rakesh, and Ramakrishnan Srikant. “Fast Algorithms for Mining Association Rules in Large Databases.” In Proceedings of the 20th International Conference on Very Large Data Bases, 487–99. VLDB ’94. San Francisco, CA, USA: Morgan Kaufmann Publishers Inc., 1994.
 
 
-<Badge type="info" class="source-link" text="source"><a href="https://github.com/JaredSchwartz/RuleMiner.jl/blob/50e7831f373a509da72d377d58eedb09e7b093bc/src/association_rules/apriori.jl#L29-L80" target="_blank" rel="noreferrer">source</a></Badge>
+<Badge type="info" class="source-link" text="source"><a href="https://github.com/JaredSchwartz/RuleMiner.jl/blob/28c20fcdf8c6476db207b957687b1f96067f3605/src/association_rules/apriori.jl#L29-L80" target="_blank" rel="noreferrer">source</a></Badge>
 
 </details>
 
@@ -137,7 +137,7 @@ result = eclat(txns, 5_000)
 Zaki, Mohammed. “Scalable Algorithms for Association Mining.” Knowledge and Data Engineering, IEEE Transactions On 12 (June 1, 2000): 372–90. https://doi.org/10.1109/69.846291.
 
 
-<Badge type="info" class="source-link" text="source"><a href="https://github.com/JaredSchwartz/RuleMiner.jl/blob/50e7831f373a509da72d377d58eedb09e7b093bc/src/itemsets/frequent/eclat.jl#L6-L45" target="_blank" rel="noreferrer">source</a></Badge>
+<Badge type="info" class="source-link" text="source"><a href="https://github.com/JaredSchwartz/RuleMiner.jl/blob/28c20fcdf8c6476db207b957687b1f96067f3605/src/itemsets/frequent/eclat.jl#L6-L45" target="_blank" rel="noreferrer">source</a></Badge>
 
 </details>
 
@@ -203,7 +203,7 @@ result = fpgrowth(tree, 6000)  # Find frequent itemsets with minimum support of 
 Han, Jiawei, Jian Pei, and Yiwen Yin. &quot;Mining Frequent Patterns without Candidate Generation.&quot;  SIGMOD Rec. 29, no. 2 (May 16, 2000): 1–12. https://doi.org/10.1145/335191.335372.
 
 
-<Badge type="info" class="source-link" text="source"><a href="https://github.com/JaredSchwartz/RuleMiner.jl/blob/50e7831f373a509da72d377d58eedb09e7b093bc/src/itemsets/frequent/fpgrowth.jl#L6-L52" target="_blank" rel="noreferrer">source</a></Badge>
+<Badge type="info" class="source-link" text="source"><a href="https://github.com/JaredSchwartz/RuleMiner.jl/blob/28c20fcdf8c6476db207b957687b1f96067f3605/src/itemsets/frequent/fpgrowth.jl#L6-L52" target="_blank" rel="noreferrer">source</a></Badge>
 
 </details>
 
@@ -261,7 +261,7 @@ result = charm(txns, 5_000)
 Zaki, Mohammed, and Ching-Jui Hsiao. “CHARM: An Efficient Algorithm for Closed Itemset Mining.” In Proceedings of the 2002 SIAM International Conference on Data Mining (SDM), 457–73. Proceedings. Society for Industrial and Applied Mathematics, 2002. https://doi.org/10.1137/1.9781611972726.27.
 
 
-<Badge type="info" class="source-link" text="source"><a href="https://github.com/JaredSchwartz/RuleMiner.jl/blob/50e7831f373a509da72d377d58eedb09e7b093bc/src/itemsets/closed/charm.jl#L6-L39" target="_blank" rel="noreferrer">source</a></Badge>
+<Badge type="info" class="source-link" text="source"><a href="https://github.com/JaredSchwartz/RuleMiner.jl/blob/28c20fcdf8c6476db207b957687b1f96067f3605/src/itemsets/closed/charm.jl#L6-L39" target="_blank" rel="noreferrer">source</a></Badge>
 
 </details>
 
@@ -331,7 +331,7 @@ result = fpclose(tree, 6000)  # Find closed frequent itemsets with minimum suppo
 Grahne, Gösta, and Jianfei Zhu. &quot;Fast Algorithms for Frequent Itemset Mining Using FP-Trees.&quot;  IEEE Transactions on Knowledge and Data Engineering 17, no. 10 (October 2005): 1347–62.  https://doi.org/10.1109/TKDE.2005.166.
 
 
-<Badge type="info" class="source-link" text="source"><a href="https://github.com/JaredSchwartz/RuleMiner.jl/blob/50e7831f373a509da72d377d58eedb09e7b093bc/src/itemsets/closed/fpclose.jl#L6-L55" target="_blank" rel="noreferrer">source</a></Badge>
+<Badge type="info" class="source-link" text="source"><a href="https://github.com/JaredSchwartz/RuleMiner.jl/blob/28c20fcdf8c6476db207b957687b1f96067f3605/src/itemsets/closed/fpclose.jl#L6-L55" target="_blank" rel="noreferrer">source</a></Badge>
 
 </details>
 
@@ -391,7 +391,7 @@ result = LCM(txns, 5_000)
 Uno, Takeaki, Tatsuya Asai, Yuzo Uchida, and Hiroki Arimura. “An Efficient Algorithm for Enumerating Closed Patterns in Transaction Databases.”  In Discovery Science, edited by Einoshin Suzuki and Setsuo Arikawa, 16–31. Berlin, Heidelberg: Springer, 2004. https://doi.org/10.1007/978-3-540-30214-8_2.
 
 
-<Badge type="info" class="source-link" text="source"><a href="https://github.com/JaredSchwartz/RuleMiner.jl/blob/50e7831f373a509da72d377d58eedb09e7b093bc/src/itemsets/closed/lcm.jl#L6-L43" target="_blank" rel="noreferrer">source</a></Badge>
+<Badge type="info" class="source-link" text="source"><a href="https://github.com/JaredSchwartz/RuleMiner.jl/blob/28c20fcdf8c6476db207b957687b1f96067f3605/src/itemsets/closed/lcm.jl#L6-L43" target="_blank" rel="noreferrer">source</a></Badge>
 
 </details>
 
@@ -455,7 +455,7 @@ result = carpenter(txns, 5_000)
 Pan, Feng, Gao Cong, Anthony K. H. Tung, Jiong Yang, and Mohammed J. Zaki. “Carpenter: Finding Closed Patterns in Long Biological Datasets.” In Proceedings of the Ninth ACM SIGKDD International Conference on Knowledge Discovery and Data Mining, 637–42. KDD ’03. New York, NY, USA: Association for Computing Machinery, 2003. https://doi.org/10.1145/956750.956832.
 
 
-<Badge type="info" class="source-link" text="source"><a href="https://github.com/JaredSchwartz/RuleMiner.jl/blob/50e7831f373a509da72d377d58eedb09e7b093bc/src/itemsets/closed/carpenter.jl#L6-L43" target="_blank" rel="noreferrer">source</a></Badge>
+<Badge type="info" class="source-link" text="source"><a href="https://github.com/JaredSchwartz/RuleMiner.jl/blob/28c20fcdf8c6476db207b957687b1f96067f3605/src/itemsets/closed/carpenter.jl#L6-L43" target="_blank" rel="noreferrer">source</a></Badge>
 
 </details>
 
@@ -531,7 +531,7 @@ result = fpmax(tree, 6000)  # Find maximal frequent itemsets with minimum suppor
 Grahne, Gösta, and Jianfei Zhu. &quot;Fast Algorithms for Frequent Itemset Mining Using FP-Trees.&quot;  IEEE Transactions on Knowledge and Data Engineering 17, no. 10 (October 2005): 1347–62.  https://doi.org/10.1109/TKDE.2005.166.
 
 
-<Badge type="info" class="source-link" text="source"><a href="https://github.com/JaredSchwartz/RuleMiner.jl/blob/50e7831f373a509da72d377d58eedb09e7b093bc/src/itemsets/maximal/fpmax.jl#L6-L59" target="_blank" rel="noreferrer">source</a></Badge>
+<Badge type="info" class="source-link" text="source"><a href="https://github.com/JaredSchwartz/RuleMiner.jl/blob/28c20fcdf8c6476db207b957687b1f96067f3605/src/itemsets/maximal/fpmax.jl#L6-L59" target="_blank" rel="noreferrer">source</a></Badge>
 
 </details>
 
@@ -593,7 +593,7 @@ result = genmax(txns, 5_000)
 Gouda, Karam, and Mohammed J. Zaki. “GenMax: An Efficient Algorithm for Mining Maximal Frequent Itemsets.” Data Mining and Knowledge Discovery 11, no. 3 (November 1, 2005): 223–42. https://doi.org/10.1007/s10618-005-0002-x.
 
 
-<Badge type="info" class="source-link" text="source"><a href="https://github.com/JaredSchwartz/RuleMiner.jl/blob/50e7831f373a509da72d377d58eedb09e7b093bc/src/itemsets/maximal/genmax.jl#L6-L45" target="_blank" rel="noreferrer">source</a></Badge>
+<Badge type="info" class="source-link" text="source"><a href="https://github.com/JaredSchwartz/RuleMiner.jl/blob/28c20fcdf8c6476db207b957687b1f96067f3605/src/itemsets/maximal/genmax.jl#L6-L45" target="_blank" rel="noreferrer">source</a></Badge>
 
 </details>
 
@@ -665,7 +665,7 @@ frequent_sets = recover_closed(closed_sets, 5_000)
 Pasquier, Nicolas, Yves Bastide, Rafik Taouil, and Lotfi Lakhal. &quot;Efficient Mining of Association Rules Using Closed Itemset Lattices.&quot; Information Systems 24, no. 1 (March 1, 1999): 25–46. https://doi.org/10.1016/S0306-4379(99)00003-4.
 
 
-<Badge type="info" class="source-link" text="source"><a href="https://github.com/JaredSchwartz/RuleMiner.jl/blob/50e7831f373a509da72d377d58eedb09e7b093bc/src/itemsets/frequent/recovery.jl#L6-L51" target="_blank" rel="noreferrer">source</a></Badge>
+<Badge type="info" class="source-link" text="source"><a href="https://github.com/JaredSchwartz/RuleMiner.jl/blob/28c20fcdf8c6476db207b957687b1f96067f3605/src/itemsets/frequent/recovery.jl#L6-L51" target="_blank" rel="noreferrer">source</a></Badge>
 
 </details>
 
@@ -725,7 +725,7 @@ frequent_sets = recover_maximal(maximal_sets)
 
 
 
-<Badge type="info" class="source-link" text="source"><a href="https://github.com/JaredSchwartz/RuleMiner.jl/blob/50e7831f373a509da72d377d58eedb09e7b093bc/src/itemsets/frequent/recovery.jl#L121-L158" target="_blank" rel="noreferrer">source</a></Badge>
+<Badge type="info" class="source-link" text="source"><a href="https://github.com/JaredSchwartz/RuleMiner.jl/blob/28c20fcdf8c6476db207b957687b1f96067f3605/src/itemsets/frequent/recovery.jl#L121-L158" target="_blank" rel="noreferrer">source</a></Badge>
 
 </details>
 
@@ -837,7 +837,7 @@ total_transactions = txns.n_transactions # Get the total number of transactions
 
 
 
-<Badge type="info" class="source-link" text="source"><a href="https://github.com/JaredSchwartz/RuleMiner.jl/blob/50e7831f373a509da72d377d58eedb09e7b093bc/src/data_structures/txns.jl#L6-L83" target="_blank" rel="noreferrer">source</a></Badge>
+<Badge type="info" class="source-link" text="source"><a href="https://github.com/JaredSchwartz/RuleMiner.jl/blob/28c20fcdf8c6476db207b957687b1f96067f3605/src/data_structures/txns.jl#L6-L83" target="_blank" rel="noreferrer">source</a></Badge>
 
 </details>
 
@@ -884,7 +884,7 @@ df = DataFrame(txns)
 
 
 
-<Badge type="info" class="source-link" text="source"><a href="https://github.com/JaredSchwartz/RuleMiner.jl/blob/50e7831f373a509da72d377d58eedb09e7b093bc/src/utils/txn_utils.jl#L210-L238" target="_blank" rel="noreferrer">source</a></Badge>
+<Badge type="info" class="source-link" text="source"><a href="https://github.com/JaredSchwartz/RuleMiner.jl/blob/28c20fcdf8c6476db207b957687b1f96067f3605/src/utils/txn_utils.jl#L210-L238" target="_blank" rel="noreferrer">source</a></Badge>
 
 </details>
 
@@ -994,7 +994,7 @@ traverse(tree.root)
 Han, J., Pei, J., &amp; Yin, Y. (2000). Mining Frequent Patterns without Candidate Generation.  In proceedings of the 2000 ACM SIGMOD International Conference on Management of Data (pp. 1-12).
 
 
-<Badge type="info" class="source-link" text="source"><a href="https://github.com/JaredSchwartz/RuleMiner.jl/blob/50e7831f373a509da72d377d58eedb09e7b093bc/src/data_structures/fptree.jl#L6-L78" target="_blank" rel="noreferrer">source</a></Badge>
+<Badge type="info" class="source-link" text="source"><a href="https://github.com/JaredSchwartz/RuleMiner.jl/blob/28c20fcdf8c6476db207b957687b1f96067f3605/src/data_structures/fptree.jl#L6-L78" target="_blank" rel="noreferrer">source</a></Badge>
 
 </details>
 
@@ -1067,7 +1067,7 @@ print_tree(root)
 
 
 
-<Badge type="info" class="source-link" text="source"><a href="https://github.com/JaredSchwartz/RuleMiner.jl/blob/50e7831f373a509da72d377d58eedb09e7b093bc/src/data_structures/fpnode.jl#L6-L60" target="_blank" rel="noreferrer">source</a></Badge>
+<Badge type="info" class="source-link" text="source"><a href="https://github.com/JaredSchwartz/RuleMiner.jl/blob/28c20fcdf8c6476db207b957687b1f96067f3605/src/data_structures/fpnode.jl#L6-L60" target="_blank" rel="noreferrer">source</a></Badge>
 
 </details>
 
