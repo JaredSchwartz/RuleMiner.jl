@@ -311,22 +311,20 @@ function Base.show(io::IO, ::MIME"text/plain", txns::Txns)
         )
     end 
 
-    # Display table
-    tf = TextFormat(
-        up_intersection='─',
-        bottom_intersection='─',
-        column='│',
-        row='─',
-        hlines=[:header]
+    format = TextTableFormat(;
+        @text__no_horizontal_lines,
+        vertical_line_at_beginning = false,
+        vertical_line_after_data_columns = false,
+        horizontal_line_after_column_labels = true,
     )
 
-    pretty_table(io, display_data;
-        header=["Index", "Items"],
-        tf=tf,
-        crop=:none,
-        show_row_number=false,
-        columns_width=[index_width, items_width],
-        alignment=[:r, :l],
-        vlines=[1]
+    # Display table using PrettyTables.jl 3.0 API
+    pretty_table(
+        io, 
+        display_data;
+        column_labels = ["Index","Items"],
+        alignment = [:r,:l],
+        table_format = format,
+        fit_table_in_display_horizontally = false
     )
 end

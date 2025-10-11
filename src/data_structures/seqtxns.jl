@@ -383,22 +383,20 @@ function Base.show(io::IO, ::MIME"text/plain", seqtxns::SeqTxns)
         )
     end
 
-    # Display table
-    tf = TextFormat(
-        up_intersection='─',
-        bottom_intersection='─',
-        column='│',
-        row='─',
-        hlines=[:header]
+    format = TextTableFormat(;
+        @text__no_horizontal_lines,
+        vertical_line_at_beginning = false,
+        vertical_line_after_data_columns = false,
+        horizontal_line_after_column_labels = true,
     )
-
-    pretty_table(io, display_data;
-        header=["Sequence", "Transaction", "Items"],
-        tf=tf,
-        crop=:none,
-        show_row_number=false,
-        columns_width=[seq_width, idx_width, items_width],
-        alignment=[:r, :l, :l],
-        vlines=[1, 2]
+    
+    pretty_table(
+        io, 
+        display_data;
+        column_labels = ["Sequence", "Transaction", "Items"],
+        alignment = [:r, :l, :l],
+        table_format = format,
+        maximum_number_of_columns = -1,
+        fit_table_in_display_horizontally = false
     )
 end
