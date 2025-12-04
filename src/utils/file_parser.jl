@@ -103,6 +103,46 @@ mutable struct ParsedData
 end
 
 """
+    start_new_line!(ctx::ParseContext, data::ParsedData)
+
+Initialize counters and state for a new line.
+"""
+@inline function start_new_line!(ctx::ParseContext, data::ParsedData)
+    # Increment line counter (optimistically - will decrement if empty)
+    ctx.line_counter += 1
+    
+    # Handle sequence indices for SeqTxns
+    if ctx.has_set_delimiter
+        if ctx.line_counter <= length(data.sequence_indices)
+            data.sequence_indices[ctx.line_counter] = ctx.set_counter + 1
+        end
+    end
+    
+    # Increment set counter for first set in line
+    ctx.set_counter += 1
+    ctx.items_in_current_row = 0
+    ctx.items_in_current_set = 0
+    ctx.is_first_field = true
+end
+
+"""
+    finalize_line!(ctx::ParseContext)
+
+Finalize the current line, handling empty lines and set delimiters.
+"""
+@inline function finalize_line!(ctx::ParseContext)
+    # If we have set delimiters and ended with an empty set, decrement set_counter
+    if ctx.has_set_delimiter && ctx.items_in_current_set == 0 && ctx.items_in_current_row > 0
+        ctx.set_counter -= 1
+    end
+    
+    # If we didn't add any items to this row, decrement the line counter back
+    if ctx.items_in_current_row == 0
+        ctx.line_counter -= 1
+    end
+end
+
+"""
     parse_transaction_file(
         file::String,
         item_delimiter::Union{Char, String};
@@ -170,11 +210,8 @@ function parse_transaction_file(
     
     # Main parsing loop
     while true
+        # Check exit conditions
         if ctx.position > len
-            ctx.state = END_OF_PARSING
-        end
-        # Check line limit
-        if ctx.nlines != 0 && ctx.line_counter > ctx.nlines
             ctx.state = END_OF_PARSING
         end
         
@@ -192,29 +229,13 @@ function parse_transaction_file(
             end
             
         elseif ctx.state == START_OF_LINE
-            # Check line limit before incrementing counters
+            # Check if we've reached the line limit before starting a new line
             if ctx.nlines != 0 && ctx.line_counter >= ctx.nlines
                 ctx.state = END_OF_PARSING
                 continue
             end
             
-            # Increment line counter (will be decremented in END_OF_LINE if row is empty)
-            ctx.line_counter += 1
-            
-            # Handle sequence indices for SeqTxns
-            if ctx.has_set_delimiter
-                if ctx.line_counter <= length(data.sequence_indices)
-                    data.sequence_indices[ctx.line_counter] = ctx.set_counter + 1
-                end
-            end
-            
-            # Increment set counter for first set in line
-            ctx.set_counter += 1
-            ctx.items_in_current_row = 0
-            ctx.items_in_current_set = 0
-            ctx.is_first_field = true
-            
-            # Move to NULL_FIELD to start scanning
+            start_new_line!(ctx, data)
             ctx.state = NULL_FIELD
             
         elseif ctx.state == NULL_FIELD
@@ -300,32 +321,13 @@ function parse_transaction_file(
             ctx.state = NULL_FIELD
             
         elseif ctx.state == END_OF_LINE
-            # If we have set delimiters and ended with an empty set, decrement set_counter
-            if ctx.has_set_delimiter && ctx.items_in_current_set == 0 && ctx.items_in_current_row > 0
-                ctx.set_counter -= 1
-            end
-            
-            # If we didn't add any items to this row, decrement the line counter back
-            if ctx.items_in_current_row == 0
-                ctx.line_counter -= 1
-            end
+            finalize_line!(ctx)
             ctx.state = START_OF_LINE
 
         elseif ctx.state == END_OF_PARSING
-
-            if ctx.items_in_current_row == 0
-                # We incremented line_counter at START_OF_LINE but added no items - decrement it back
-                ctx.line_counter -= 1
-            end
-            
-            # Handle empty trailing set at end of file (for SeqTxns)
-            if ctx.has_set_delimiter && ctx.items_in_current_set == 0 && ctx.items_in_current_row > 0
-                # We incremented set_counter but added no items to the final set - decrement it back
-                ctx.set_counter -= 1
-            end
+            finalize_line!(ctx)
             break
         end
-
     end
     
     # Finalize storage
