@@ -148,6 +148,68 @@ Finalize the current line, handling empty lines and set delimiters.
 end
 
 """
+    end_field!(ctx::ParseContext, data::ParsedData, io, field_end::Int, delim_len::Int, next_state::ParserState)
+
+Process the end of a field: extract field view, process it, update position, and transition to next state.
+"""
+@inline function finalize_field!(
+    ctx::ParseContext,
+    data::ParsedData,
+    io,
+    field_end::Int,
+    delim_len::Int,
+    next_state::ParserState
+)
+    field_view = @view io[ctx.field_start:field_end-1]
+    process_field!(ctx, data, field_view)
+    ctx.position = field_end + delim_len
+    ctx.state = next_state
+end
+
+"""
+    process_field!(ctx::ParseContext, data::ParsedData, field_view::SubArray)
+
+Process a parsed field and update data structures.
+"""
+@inline function process_field!(
+    ctx::ParseContext,
+    data::ParsedData,
+    field_view::SubArray
+)
+    # Handle ID column if this is the first field and ID column is expected
+    if ctx.has_id_column && ctx.is_first_field
+        if !isempty(data.rowkey_views) && ctx.line_counter <= length(data.rowkey_views)
+            @inbounds data.rowkey_views[ctx.line_counter] = field_view
+        end
+        ctx.is_first_field = false
+        return
+    end
+    
+    # Mark that we've seen a non-ID field
+    ctx.is_first_field = false
+    ctx.item_counter += 1
+    
+    # Get or create item ID
+    item_id = get(data.item_map, field_view, nothing)
+    if isnothing(item_id)
+        ctx.item_id += 1
+        item_id = ctx.item_id
+        data.item_map[field_view] = item_id
+        push!(data.colkey_views, field_view)
+    end
+    
+    # Store the item
+    @inbounds data.colvals[ctx.item_counter] = item_id
+    
+    # Determine which row/set to assign this to
+    if ctx.has_set_delimiter
+        @inbounds data.rowvals[ctx.item_counter] = ctx.set_counter
+    else
+        @inbounds data.rowvals[ctx.item_counter] = ctx.line_counter
+    end
+end
+
+"""
     parse_transaction_file(
         file::String,
         item_delimiter::Union{Char, String};
@@ -234,7 +296,7 @@ function parse_transaction_file(
             end
             
         elseif ctx.state == START_OF_LINE
-            # Check if we've reached the line limit before starting a new line
+            # Early exit if reached nlines limit
             if ctx.nlines != 0 && ctx.line_counter >= ctx.nlines
                 ctx.state = END_OF_PARSING
                 continue
@@ -243,31 +305,27 @@ function parse_transaction_file(
             start_new_line!(ctx, data)
             ctx.state = NULL_FIELD
             
-        elseif ctx.state == NULL_FIELD
-            # Check what we're looking at
-            newline_len = check_newline(io, ctx.position)
-            
-            if newline_len > 0
+        elseif ctx.state == NULL_FIELD          
+            if (newline_len = check_newline(io, ctx.position)) > 0
                 # Empty field before newline - skip it
                 ctx.position += newline_len
                 ctx.state = END_OF_LINE
+
+            elseif check_delim(io, ctx.position, item_delim_bytes)
+                # Empty field before item delimiter - skip it
+                ctx.position += length(item_delim_bytes)
                 
             elseif !isnothing(set_delim_bytes) && check_delim(io, ctx.position, set_delim_bytes)
                 # Empty field before set delimiter - skip it
                 ctx.position += length(set_delim_bytes)
                 ctx.state = AFTER_SET_DELIM
                 
-            elseif check_delim(io, ctx.position, item_delim_bytes)
-                # Empty field before item delimiter - skip it
-                ctx.position += length(item_delim_bytes)
-                # Stay in NULL_FIELD to scan next field
-                
             elseif io[ctx.position] ∈ whitespace_bytes
                 # Still whitespace - keep scanning
                 ctx.position += 1
                 
             else
-                # Found non-whitespace! Start of actual field content
+                # Non-whitespace means actual field content
                 ctx.field_start = ctx.position
                 ctx.state = IN_FIELD
             end
@@ -275,40 +333,32 @@ function parse_transaction_file(
         elseif ctx.state == IN_FIELD
             # Scan forward to find the end of the field
             field_end = ctx.position
-            while field_end <= len
-                # Check item delimiter first (most common)
-                if check_delim(io, field_end, item_delim_bytes)
-                    field_view = @view io[ctx.field_start:field_end-1]
+            while true
+                # Check for end of file
+                if field_end > len
+                    field_view = @view io[ctx.field_start:len]
                     process_field!(ctx, data, field_view)
-                    ctx.position = field_end + length(item_delim_bytes)
-                    ctx.state = NULL_FIELD
+                    ctx.state = END_OF_PARSING
+                    ctx.position = len + 1
+                    break
+                    
+                # Check item delimiter first (most common)
+                elseif check_delim(io, field_end, item_delim_bytes)
+                    finalize_field!(ctx, data, io, field_end, length(item_delim_bytes), NULL_FIELD)
                     break
                     
                 # Check set delimiter
                 elseif !isnothing(set_delim_bytes) && check_delim(io, field_end, set_delim_bytes)
-                    field_view = @view io[ctx.field_start:field_end-1]
-                    process_field!(ctx, data, field_view)
-                    ctx.position = field_end + length(set_delim_bytes)
-                    ctx.state = AFTER_SET_DELIM
+                    finalize_field!(ctx, data, io, field_end, length(set_delim_bytes), AFTER_SET_DELIM)
                     break
                     
                 # Check newline
                 elseif (newline_len = check_newline(io, field_end)) > 0
-                    field_view = @view io[ctx.field_start:field_end-1]
-                    process_field!(ctx, data, field_view)
-                    ctx.position = field_end + newline_len
-                    ctx.state = END_OF_LINE
+                    finalize_field!(ctx, data, io, field_end, newline_len, END_OF_LINE)
                     break
                 end
                 
                 field_end += 1
-            end
-            
-            # Handle end of file
-            if field_end > len && ctx.state == IN_FIELD
-                field_view = @view io[ctx.field_start:len]
-                process_field!(ctx, data, field_view)
-                ctx.position = len + 1
             end
             
         elseif ctx.state == AFTER_SET_DELIM
@@ -353,47 +403,4 @@ function parse_transaction_file(
     rowkeys = unsafe_string.(pointer.(data.rowkey_views), length.(data.rowkey_views))
     
     return (matrix, colkeys, rowkeys, data.sequence_indices)
-end
-
-"""
-    process_field!(ctx::ParseContext, data::ParsedData, field_view::SubArray)
-
-Process a parsed field and update data structures.
-"""
-@inline function process_field!(
-    ctx::ParseContext,
-    data::ParsedData,
-    field_view::SubArray
-)
-    # Handle ID column if this is the first field and ID column is expected
-    if ctx.has_id_column && ctx.is_first_field
-        if !isempty(data.rowkey_views) && ctx.line_counter <= length(data.rowkey_views)
-            @inbounds data.rowkey_views[ctx.line_counter] = field_view
-        end
-        ctx.is_first_field = false
-        return
-    end
-    
-    # Mark that we've seen a non-ID field
-    ctx.is_first_field = false
-    ctx.item_counter += 1
-    
-    # Get or create item ID
-    item_id = get(data.item_map, field_view, nothing)
-    if isnothing(item_id)
-        ctx.item_id += 1
-        item_id = ctx.item_id
-        data.item_map[field_view] = item_id
-        push!(data.colkey_views, field_view)
-    end
-    
-    # Store the item
-    @inbounds data.colvals[ctx.item_counter] = item_id
-    
-    # Determine which row/set to assign this to
-    if ctx.has_set_delimiter
-        @inbounds data.rowvals[ctx.item_counter] = ctx.set_counter
-    else
-        @inbounds data.rowvals[ctx.item_counter] = ctx.line_counter
-    end
 end
