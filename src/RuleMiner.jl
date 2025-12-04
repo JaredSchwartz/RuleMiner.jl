@@ -20,6 +20,7 @@ include("utils/core_utils.jl")
 
 #==============Transactions Objects==============#
 abstract type Transactions end
+include("utils/file_parser.jl")
 include("data_structures/txns.jl")
 include("data_structures/seqtxns.jl")
 include("utils/txn_utils.jl")

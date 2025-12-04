@@ -132,137 +132,15 @@ struct SeqTxns <: Transactions
         skiplines::Int = 0, 
         nlines::Int = 0
     )
-        skiplines >= 0 || throw(DomainError(skiplines, "skiplines must be a non-negative integer"))
-        nlines >= 0 || throw(DomainError(nlines, "nlines must be a non-negative integer"))
-
-        io = Mmap.mmap(file)
-        whitespace_bytes = UInt8.([' ', '\t', '\n', '\v', '\f', '\r'])
-        item_delim_bytes = Vector{UInt8}(string(item_delimiter))
-        set_delim_bytes = Vector{UInt8}(string(set_delimiter))
+    matrix, colkeys, _, sequence_indices = parse_transaction_file(
+            file, item_delimiter;
+            set_delimiter = set_delimiter,
+            id_col = false,
+            skiplines = skiplines,
+            nlines = nlines
+        )
         
-        # Estimate lines, sets, and items from delimiter counts - preallocate arrays properly
-        est_lines, est_sets, est_items = delimcounter(io, set_delim_bytes, item_delim_bytes)
-        est_lines = est_lines + 1 - skiplines   # Est. lines is one more than num of line delims minus any skipped
-        est_sets = est_sets + est_lines         # Line delims also act as set delims
-        est_items = est_items + est_sets        # Set delims also act as item delims
-        
-        # Pre-allocate storage structures
-        KeyView = SubArray{UInt8,1,Vector{UInt8},Tuple{UnitRange{Int64}},true}
-        item_map = Dict{KeyView, UInt32}()
-        colkey_views = Vector{KeyView}()
-        colvals = Vector{UInt32}(undef, est_items)
-        rowvals = Vector{UInt32}(undef, est_items)
-        index = Vector{UInt32}(undef, est_lines)  # Sequence start indices
-        
-        len = length(io)
-        word_start = 1
-        line_counter = 1
-        set_counter = 0
-        item_counter = 0
-        items_in_row = 0
-        item_id = 0
-        
-        # Skip header lines if requested
-        while skiplines > 0 && word_start <= len
-            newline_len = check_newline(io, word_start)
-            newline_len > 0 && (skiplines -= 1; word_start += newline_len; continue)
-            word_start += 1
-        end
-        
-        # First sequence always starts at position 1
-        index[1] = 1
-        
-        # Main parsing loop
-        while word_start <= len
-            nlines != 0 && line_counter > nlines && break
-            
-            # Handle newline (starts a new sequence)
-            newline_len = check_newline(io, word_start)
-            if newline_len > 0
-                if items_in_row > 0
-                    nlines != 0 && line_counter == nlines && break
-                    line_counter += 1
-                    if line_counter <= length(index)
-                        index[line_counter] = set_counter + 1
-                    end
-                end
-                items_in_row = 0
-                word_start += newline_len
-                continue
-            end
-            
-            # Find end of current field by scanning until delimiter/newline
-            word_end = word_start
-            has_content = false
-            while word_end <= len
-                if check_delim(io, word_end, item_delim_bytes) || 
-                check_delim(io, word_end, set_delim_bytes) ||
-                check_newline(io, word_end) > 0
-                    break
-                end
-                io[word_end] ∈ whitespace_bytes || (has_content = true)
-                word_end += 1
-            end
-            
-            # Skip empty/whitespace-only fields
-            if !has_content
-                word_start = word_end
-                if check_delim(io, word_end, item_delim_bytes)
-                    word_start += length(item_delim_bytes)
-                elseif check_delim(io, word_end, set_delim_bytes)
-                    word_start += length(set_delim_bytes)
-                end
-                continue
-            end
-            
-            # Handle set boundary - increment set counter when starting a new set
-            if items_in_row == 0
-                set_counter += 1
-            end
-            word_view = @view io[word_start:word_end-1]
-            
-            # Process regular field - dedup and store
-            items_in_row += 1
-            item_counter += 1
-            
-            # avoided get!()do...end block because the closure causes serious performance issues
-            key = get(item_map, word_view, nothing)
-            if isnothing(key)
-                item_id += 1
-                key = item_id
-                item_map[word_view] = key
-                push!(colkey_views, word_view)
-            end
-            
-            @inbounds colvals[item_counter] = key
-            @inbounds rowvals[item_counter] = set_counter
-            
-            word_start = word_end
-            if check_delim(io, word_end, item_delim_bytes)
-                word_start += length(item_delim_bytes)
-            elseif check_delim(io, word_end, set_delim_bytes)
-                word_start += length(set_delim_bytes)
-                items_in_row = 0
-            end
-        end
-
-        # Resize arrays to actual data size
-        resize!(colvals, item_counter)
-        resize!(rowvals, item_counter)
-        resize!(index, line_counter)
-        
-        # Generate sparse matrix
-        n = item_id
-        m = set_counter
-        colptr, rowval = RuleMiner.convert_csc!(colvals, rowvals, n)
-        nzval = fill(true, item_counter)
-        matrix = SparseMatrixCSC(m, n, colptr, rowval, nzval)
-        
-        # Convert views to strings
-        colkeys = sort!(collect(keys(item_map)), by=k->item_map[k])
-        colkeys = unsafe_string.(pointer.(colkeys), length.(colkeys))
-        
-        return new(matrix, colkeys, index, m, line_counter)
+        return new(matrix, colkeys, sequence_indices, size(matrix, 1), length(sequence_indices))
     end
 end
 

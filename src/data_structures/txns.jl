@@ -126,114 +126,15 @@ struct Txns <: Transactions
         file::String, item_delimiter::Union{Char,String};
         id_col::Bool = false, skiplines::Int = 0, nlines::Int = 0,
     )
-        skiplines >= 0 || throw(DomainError(skiplines, "skiplines must be a non-negative integer"))
-        nlines >= 0 || throw(DomainError(nlines, "nlines must be a non-negative integer"))
-    
-        io = Mmap.mmap(file)
-        whitespace_bytes = UInt8.([' ', '\t', '\n', '\v', '\f', '\r'])
-        delim_bytes = Vector{UInt8}(string(item_delimiter))
-    
-        # Estimate required storage based on delimiter counts
-        est_lines, est_items = delimcounter(io, delim_bytes)
-        est_lines += 1 - skiplines
-        est_items += est_lines
-    
-        # Pre-allocate storage structures
-        KeyView = SubArray{UInt8,1,Vector{UInt8},Tuple{UnitRange{Int64}},true}
-        item_map = Dict{KeyView, UInt32}()
-        rowkey_views = id_col ? Vector{KeyView}(undef, est_lines) : Vector{KeyView}()
-        colkey_views = Vector{KeyView}()
-        colvals = Vector{UInt32}(undef, est_items)
-        rowvals = Vector{UInt32}(undef, est_items)
+    matrix, colkeys, rowkeys, _ = parse_transaction_file(
+            file, item_delimiter;
+            set_delimiter = nothing,
+            id_col = id_col,
+            skiplines = skiplines,
+            nlines = nlines
+        )
         
-        len = length(io)
-        word_start = 1
-        line_counter = 1
-        item_counter = 0
-        items_in_row = 0
-        item_id = 0
-        
-        # Skip header lines if requested
-        while skiplines > 0 && word_start <= len
-            newline_len = check_newline(io, word_start)
-            newline_len > 0 && (skiplines -= 1; word_start += newline_len; continue)
-            word_start += 1
-        end
-        
-        # Main parsing loop - process each field in the file
-        while word_start <= len
-            nlines != 0 && line_counter > nlines && break
-        
-            # Handle newline at current position if present
-            newline_len = check_newline(io, word_start)
-            if newline_len > 0
-                items_in_row > 0 && (line_counter += 1) 
-                items_in_row = 0
-                word_start += newline_len
-                continue
-            end
-        
-            # Find end of current field by scanning until delimiter/newline
-            word_end = word_start
-            has_content = false
-            while word_end <= len
-                check_delim(io, word_end, delim_bytes) && break
-                check_newline(io, word_end) > 0 && break
-                io[word_end] ∈ whitespace_bytes || (has_content = true)
-                word_end += 1
-            end
-            
-            # Skip empty/whitespace-only fields
-            has_content || (word_start = word_end + 1; continue)
-        
-            word_view = @view io[word_start:word_end-1]
-        
-            # Special handling for ID column at start of line
-            if id_col && items_in_row == 0
-                @inbounds rowkey_views[line_counter] = word_view
-                items_in_row = 1
-                word_start = word_end
-                if check_delim(io, word_end, delim_bytes)
-                    word_start += length(delim_bytes)
-                end
-                continue
-            end
-        
-            # Process regular field - dedup and store
-            items_in_row += 1
-            item_counter += 1
-            
-            val = get(item_map, word_view, nothing)
-            isnothing(val) && (item_id += 1; val = item_id; item_map[word_view] = val; push!(colkey_views, word_view))
-        
-            @inbounds colvals[item_counter] = val
-            @inbounds rowvals[item_counter] = line_counter
-            
-            word_start = word_end
-            if check_delim(io, word_end, delim_bytes)
-                word_start += length(delim_bytes)
-            end
-        end
-    
-        # Handle edge case for empty last line
-        items_in_row == 0 && !id_col && (line_counter -= 1)
-    
-        # Finalize storage
-        resize!(colvals, item_counter)
-        resize!(rowvals, item_counter)
-        
-        # Generate sparse matrix
-        n = item_id
-        m = line_counter
-        colptr, rowval = RuleMiner.convert_csc!(colvals, rowvals, n)
-        nzval = fill(true, item_counter)
-        matrix = SparseMatrixCSC(m, n, colptr, rowval, nzval)
-    
-        # Convert views to strings
-        colkeys = unsafe_string.(pointer.(colkey_views), length.(colkey_views))
-        rowkeys = unsafe_string.(pointer.(rowkey_views), length.(rowkey_views))
-    
-        return new(matrix, colkeys, rowkeys, m)
+        return new(matrix, colkeys, rowkeys, size(matrix, 1))
     end
 end
 
