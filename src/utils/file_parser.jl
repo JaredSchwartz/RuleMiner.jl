@@ -11,7 +11,6 @@ Parser states for transaction file reading.
     START_OF_LINE       # At the beginning of a line
     NULL_FIELD          # In a field but haven't seen non-whitespace yet
     IN_FIELD            # Currently reading a field with content
-    AFTER_ITEM_DELIM    # Just processed an item delimiter
     AFTER_SET_DELIM     # Just processed a set delimiter (SeqTxns only)
     END_OF_LINE         # At line terminator
     END_OF_PARSING      # Cleanup at end of parsing
@@ -35,8 +34,8 @@ mutable struct ParseContext
     
     # Field tracking
     field_start::Int
-    items_in_current_row::Int
-    items_in_current_set::Int
+    line_start_item::Int      # item_counter value at start of current line
+    set_start_item::Int       # item_counter value at start of current set
     is_first_field::Bool
     
     # Configuration
@@ -61,8 +60,8 @@ mutable struct ParseContext
             0,              # item_counter
             0,              # item_id
             1,              # field_start
-            0,              # items_in_current_row
-            0,              # items_in_current_set
+            0,              # line_start_item
+            0,              # set_start_item
             true,           # is_first_field
             skiplines,      # skiplines
             nlines,         # nlines
@@ -120,8 +119,10 @@ Initialize counters and state for a new line.
     
     # Increment set counter for first set in line
     ctx.set_counter += 1
-    ctx.items_in_current_row = 0
-    ctx.items_in_current_set = 0
+    
+    # Track where this line/set starts in terms of items
+    ctx.line_start_item = ctx.item_counter
+    ctx.set_start_item = ctx.item_counter
     ctx.is_first_field = true
 end
 
@@ -131,13 +132,17 @@ end
 Finalize the current line, handling empty lines and set delimiters.
 """
 @inline function finalize_line!(ctx::ParseContext)
+    # Check if this line has any items
+    items_in_line = ctx.item_counter - ctx.line_start_item
+    items_in_set = ctx.item_counter - ctx.set_start_item
+    
     # If we have set delimiters and ended with an empty set, decrement set_counter
-    if ctx.has_set_delimiter && ctx.items_in_current_set == 0 && ctx.items_in_current_row > 0
+    if ctx.has_set_delimiter && items_in_set == 0 && items_in_line > 0
         ctx.set_counter -= 1
     end
     
     # If we didn't add any items to this row, decrement the line counter back
-    if ctx.items_in_current_row == 0
+    if items_in_line == 0
         ctx.line_counter -= 1
     end
 end
@@ -255,7 +260,7 @@ function parse_transaction_file(
             elseif check_delim(io, ctx.position, item_delim_bytes)
                 # Empty field before item delimiter - skip it
                 ctx.position += length(item_delim_bytes)
-                ctx.state = AFTER_ITEM_DELIM
+                # Stay in NULL_FIELD to scan next field
                 
             elseif io[ctx.position] ∈ whitespace_bytes
                 # Still whitespace - keep scanning
@@ -276,7 +281,7 @@ function parse_transaction_file(
                     field_view = @view io[ctx.field_start:field_end-1]
                     process_field!(ctx, data, field_view)
                     ctx.position = field_end + length(item_delim_bytes)
-                    ctx.state = AFTER_ITEM_DELIM
+                    ctx.state = NULL_FIELD
                     break
                     
                 # Check set delimiter
@@ -306,16 +311,13 @@ function parse_transaction_file(
                 ctx.position = len + 1
             end
             
-        elseif ctx.state == AFTER_ITEM_DELIM
-            # Just saw an item delimiter, starting next field
-            ctx.state = NULL_FIELD
-            
         elseif ctx.state == AFTER_SET_DELIM
             # Just saw a set delimiter
             # Only create a new set if the current one had items
-            if ctx.items_in_current_set > 0
+            items_in_set = ctx.item_counter - ctx.set_start_item
+            if items_in_set > 0
                 ctx.set_counter += 1
-                ctx.items_in_current_set = 0
+                ctx.set_start_item = ctx.item_counter
             end
             ctx.is_first_field = false
             ctx.state = NULL_FIELD
@@ -375,8 +377,6 @@ Process a parsed field and update data structures.
     # Mark that we've seen a non-ID field
     ctx.is_first_field = false
     ctx.item_counter += 1
-    ctx.items_in_current_row += 1
-    ctx.items_in_current_set += 1
     
     # Get or create item ID
     item_id = get(data.item_map, field_view, nothing)
