@@ -219,7 +219,7 @@ function print_fptree_recursive(io::IO, tree::FPTree, node::FPNode, prefix::Stri
 
     # Get and sort children
     children = collect(values(node.children))
-    sort!(children, by = c -> c.support, rev = true)
+    sort!(children, by = c -> (-c.support, c.value))
 
     # Print children
     hidden_count = 0
