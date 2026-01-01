@@ -57,7 +57,7 @@ This example demonstrates reading the &quot;mushrooms&quot; dataset that is comm
 ```julia
 # Download the data to a local file
 using Downloads
-Downloads.download("http://fimi.uantwerpen.be/data/mushroom.dat", "mushrooms.txt")
+Downloads.download("https://fimi.uantwerpen.be/data/mushroom.dat", "mushrooms.txt")
 
 # Read the data into a Txns object, specifying a single space as the delimiter
 mushrooms = Txns("mushrooms.txt", ' ')
