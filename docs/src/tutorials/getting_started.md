@@ -5,7 +5,7 @@ using RuleMiner
 using DataFrames
 
 using Downloads
-Downloads.download("http://fimi.uantwerpen.be/data/mushroom.dat", "mushrooms.txt")
+Downloads.download("https://fimi.uantwerpen.be/data/mushroom.dat", "mushrooms.txt")
 mushrooms = Txns("mushrooms.txt", ' ')
 mushroom_df = txns_to_df(mushrooms)
 ```
@@ -55,7 +55,7 @@ This example demonstrates reading the "mushrooms" dataset that is commonly used 
 ```@example setup
 # Download the data to a local file
 using Downloads
-Downloads.download("http://fimi.uantwerpen.be/data/mushroom.dat", "mushrooms.txt")
+Downloads.download("https://fimi.uantwerpen.be/data/mushroom.dat", "mushrooms.txt")
 
 # Read the data into a Txns object, specifying a single space as the delimiter
 mushrooms = Txns("mushrooms.txt", ' ')
