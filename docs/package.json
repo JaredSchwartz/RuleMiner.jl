@@ -1,7 +1,7 @@
 {
   "devDependencies": {
     "@types/d3-format": "^3.0.4",
-    "@types/node": "^25.3.5",
+    "@types/node": "^26.1.0",
     "@types/markdown-it-footnote": "^3.0.4"
   },
   "scripts": {
